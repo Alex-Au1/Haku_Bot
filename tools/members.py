@@ -5,14 +5,14 @@ from typing import Optional, List, Callable, Any, Union
 
 BOT_NICKNAMES = ["Haku Yowane", "Haku" ,"Haku Chan", "Haku Onee-chan", "Haku Ojou-sama", "Haku Hime-sama", "弱音ハク"]
 
-NICKNAMES = {724430003114082334: BOT_NICKNAMES[random.randrange(0, len(BOT_NICKNAMES))],
+NICKNAMES = {The_Bots_id: BOT_NICKNAMES[random.randrange(0, len(BOT_NICKNAMES))],
              User_Ids: Nickname_for_the_user,
              ...
              ...
              ...
              }
 
-IGNORED_MEMBERS = [724430003114082334]
+IGNORED_MEMBERS = [The_Bots_id]
 OWNER_ID = My_Id
 
 INVISIBLE_MEMBERS = {}
