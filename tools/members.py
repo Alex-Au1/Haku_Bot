@@ -6,16 +6,14 @@ from typing import Optional, List, Callable, Any, Union
 BOT_NICKNAMES = ["Haku Yowane", "Haku" ,"Haku Chan", "Haku Onee-chan", "Haku Ojou-sama", "Haku Hime-sama", "弱音ハク"]
 
 NICKNAMES = {724430003114082334: BOT_NICKNAMES[random.randrange(0, len(BOT_NICKNAMES))],
-             367087171154214914: "Albert", 362304641234370560: "Baig",
-             685306457427542097: "Usman", 421386715911946260: "\U0001F1EB \U0001F1E6 \U0001F1F7 \U0001F1EE \U0001F1F8",
-             514449754764083202: "Josh", 478024309105885185: "Momo",
-             171023737741639680: "Safiullah", 359532281544704010: "Taha",
-             522779662728953880: "Yasser", 480604196438147072: "James",
-             191972152768069632: "Sajeev", 536920939917475840: "Sam",
-             612431255455399986: "Usman", 762144037309906954: "Karen"}
+             User_Ids: Nickname_for_the_user,
+             ...
+             ...
+             ...
+             }
 
 IGNORED_MEMBERS = [724430003114082334]
-OWNER_ID = 367087171154214914
+OWNER_ID = My_Id
 
 INVISIBLE_MEMBERS = {}
 
