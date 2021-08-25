@@ -607,51 +607,6 @@ class Texting(commands.Cog):
         return embeded_message
 
 
-    # copy_to_global_ch(self, server, **kwargs) Copies the editted or deleted
-    #   notification message to the global channel
-    # effects: sends an embed or a message
-    async def copy_to_global_ch(self, embeded_message: discord.Embed, server: Optional[discord.Guild],
-                                message: Optional[discord.Message], recent_edit: bool = False, **kwargs):
-        for s_id in ChannelTools.GLOBAL_CHANNELS:
-            g_channel = await self.searchtools.channel_search(ChannelTools.GLOBAL_CHANNELS[s_id], att = SearchAttributes.Id.value)
-
-            if (server is not None):
-                name = server.name
-                icon_url = server.icon_url
-            elif (kwargs["doer"] is None and message is None):
-                name = "Haku's DMs to Someone"
-                current_url = pics.get_image_link(pics.ImageCategory.Unknown, 0)
-                icon_url = current_url[1:-1]
-            elif (kwargs["doer"] is not None):
-                name = f"Haku's DMs to {members.convert_name(kwargs['doer'].id, kwargs['doer'].name)}"
-                icon_url = kwargs["doer"].avatar_url
-
-            elif (kwargs["doer"] is None and message is not None):
-                name = f"Haku's DMs to {members.convert_name(message.author.id, message.author.name)}"
-                icon_url = message.author.avatar_url
-
-            embeded_message.set_author(name = name,
-                                       icon_url = icon_url)
-
-            await g_channel.send(embed = embeded_message)
-
-            if (server is None):
-                server = name
-
-            if (message is not None or recent_edit):
-                if (not recent_edit):
-                    await self.list_embed_attach(g_channel, kwargs["doer"], message, kwargs["channel"], kwargs["type"], kwargs["bf_af"], kwargs["bf_af_lst"], server = server, public = True)
-                    await self.list_embed_attach(g_channel, kwargs["doer"], message, kwargs["channel"], kwargs["type"], kwargs["bf_af"], kwargs["bf_af_lst"], server = server, public = True, attachments = True)
-                else:
-                    if (kwargs["before"] is not None):
-                        await self.list_embed_attach(g_channel, kwargs["doer"], kwargs["before"], kwargs["channel"], kwargs["type"], kwargs["bf"], kwargs["bf_lst"], server = server, public = True)
-                        await self.list_embed_attach(g_channel, kwargs["doer"], kwargs["before"], kwargs["channel"], kwargs["type"], kwargs["bf"], kwargs["bf_attach"], server = server, public = True, attachments = True)
-
-                    if (kwargs["after"] is not None):
-                        await self.list_embed_attach(g_channel, kwargs["doer"], kwargs["after"], kwargs["channel"], kwargs["type"], kwargs["af"], kwargs["af_lst"], server = server, public = True)
-                        await self.list_embed_attach(g_channel, kwargs["doer"], kwargs["after"], kwargs["channel"], kwargs["type"], kwargs["af"], kwargs["af_attach"], server = server, public = True, attachments = True)
-
-
     # on_raw_message_delete(payload) logs when someone deletes a message
     # effects: sends an embed or message
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
@@ -701,9 +656,6 @@ class Texting(commands.Cog):
             if (message is not None):
                 activity_channel = await self.list_embed_attach(activity_channel, doer, message, channel)
                 activity_channel = await self.list_embed_attach(activity_channel, doer, message, channel, attachments = True)
-
-        await self.copy_to_global_ch(public_embeded_message, server, message, doer = doer, channel = channel, type = "delete", bf_af = NO_EDIT, bf_af_lst = None)
-
 
 
     # on_raw_bulk_message_delete(payload) logs when someone deletes messages by bulk
@@ -768,8 +720,6 @@ class Texting(commands.Cog):
                     activity_channel = await self.list_embed_attach(activity_channel, doer, message, channel, type = "delete")
                     activity_channel = await self.list_embed_attach(activity_channel, doer, message, channel, attachments = True)
 
-            await self.copy_to_global_ch(public_embeded_message, server, message, doer = doer, channel = channel, type = "delete", bf_af = NO_EDIT, bf_af_lst = None)
-
 
     # on_raw_message_edit(payload) logs when someone edits any message that is out of the cache
     # effects: sends a message or embed
@@ -814,8 +764,6 @@ class Texting(commands.Cog):
                     activity_channel = await ChannelTools.fixed_activity_send(self.client, activity_channel, server, embed = embeded_message)
                     activity_channel = await self.list_embed_attach(activity_channel, message.author, message, channel, type = "edit")
                     activity_channel = await self.list_embed_attach(activity_channel, message.author, message, channel, type = "edit", attachments = True)
-
-                await self.copy_to_global_ch(public_embeded_message, server, message, doer = message.author, channel = channel, type = "edit", bf_af = NO_EDIT, bf_af_lst = None)
 
 
     # on_message_edit(self, before, after) logs for editted message, if the message is still in the cache
@@ -879,9 +827,6 @@ class Texting(commands.Cog):
                 activity_channel = await self.list_embed_attach(activity_channel, after.author, after, channel, type = "edit", bf_af = AFTER_EDIT, bf_af_lst = after.embeds)
                 activity_channel = await self.list_embed_attach(activity_channel, after.author, after, channel, type = "edit", bf_af = AFTER_EDIT, bf_af_lst = after.attachments, attachments = True)
 
-            await self.copy_to_global_ch(public_embeded_message, server, None, recent_edit = True, doer = before.author, before = before, after = after, channel = channel,
-                                         type = "edit", bf = BEFORE_EDIT, af = AFTER_EDIT, bf_lst = before_embeds, af_lst = after.embeds, bf_attach = before_attach, af_attach = after.attachments)
-
 
     # on_message(message) Deletes the message if the message is in a
     #   server's activity channel
@@ -938,106 +883,6 @@ class Texting(commands.Cog):
                 await ctx.send(embed = embeded_message)
             elif (not in_activity):
                 await channel.send(embed = embeded_message)
-
-        elif (not context_in_activity):
-            #error message if channel specified is not found and the guild specified is not found
-            if((server is None) and (channel is None)):
-                embed = Embed(self.client)
-                embeded_message = error.display_error(self.client, 3, search_guild = search_guild, search_channel = search_channel, guild_search_type = guild_search_type, channel_search_type = channel_search_type)
-                await ctx.send(embed = embeded_message)
-
-            #error message if channel specified is not found
-            elif(channel is None):
-                embed = Embed(self.client)
-                embeded_message = error.display_error(self.client, 5, search_channel = search_channel, channel_search_type = channel_search_type)
-                await ctx.send(embed = embeded_message)
-
-
-    # master embed options
-    async def master_embed(self, ctx: commands.Context, description: str, title: str,
-                           colour: str, author_name: str, display_thumbnail: str,
-                           thumbnail: str, display_author_pic: str, author_pic: str,
-                           image: str, search_channel: str = "none", search_guild: str = "none"):
-
-        ch_sev_result = await self.searchtools.get_ch_and_server(ctx, search_channel, search_guild)
-        context_in_activity = ChannelTools.in_activity_channel(ctx.message.channel.id, server_id = ctx.message.guild.id)
-
-        dm = ch_sev_result["dm"]
-        channel = ch_sev_result["channel"]
-        server = ch_sev_result["server"]
-        channel_search_type = ch_sev_result["channel_search_type"]
-        guild_search_type = ch_sev_result["guild_search_type"]
-        in_activity = False
-
-        #send the embed if the specified channel was found
-        if (not context_in_activity and (channel is not None) and (server is not None)):
-            admin_id = members.OWNER_ID
-            user_id = ctx.message.author.id
-            is_admin = (admin_id == user_id)
-            admin = await self.client.fetch_user(admin_id)
-
-            if (not dm):
-                in_activity = ChannelTools.in_activity_channel(channel.id, server_id = server.id)
-
-            if (not in_activity or dm):
-                password = StringTools.generate_password()
-
-                if (dm):
-                    origin_guild = f"`{ctx.message.author.name} DMs with Haku`"
-                    origin_channel = f"`{ctx.message.author.name} DM with Haku`"
-                else:
-                    origin_guild = ctx.message.guild.name
-                    origin_channel = ctx.message.channel.name
-
-                #report user using function if not root
-                if (not is_admin):
-                    embeded_message = error.display_error(self.client, 1, type = "warning", choice = 1, author_name = ctx.message.author.name, guild_name = origin_guild, channel_name = origin_channel)
-                    await admin.send(embed = embeded_message)
-                    print(f'-------- {ctx.message.author.name} FROM THE SERVER {origin_guild} IS ATTEMPTING TO USE THE MASTER EMBED FUNCTION IN THE CHANNEL, {origin_channel} -----------')
-
-                #delete the message command
-                try:
-                    await ctx.channel.purge(limit=1)
-                except:
-                    pass
-                embeded_message = self.embed.bot_embed(ctx, f"THE PASSWORD FOR THE MASTER EMBED FUNCTION IS:\n\n```fix\n{password}\n```", "PASSWORD OF MASTER EMBED", "yellow", 2, {pics.ImageCategory.Default: 0})
-                await admin.send(embed = embeded_message)
-                print(f"THE PASSWORD OF MASTER EMBED FUNCTION IS:        {password}")
-
-
-                #check if the password entered by the user matches the key
-                def check(m):
-                    return m.content == password
-
-                msg = await self.client.wait_for('message', check=check)
-
-
-                #if user is not root, report if they have successfully cleared messages
-                if (not is_admin):
-                    embeded_message = error.display_error(self.client, 2, type = "warning", choice = 1, author_name = ctx.message.author.name, guild_name = origin_guild, channel_name = origin_channel)
-                    await admin.send(embed = embeded_message)
-                    print(f"<<<<<<<<< {ctx.message.author.name} HAS SUCCESSFULLY USED THE MASTER EMBED FUNCTION!!!!!!! >>>>>>>>>>>")
-
-                #remove the password message that the user entered
-                if (msg.channel.type != discord.ChannelType.private):
-                    await msg.channel.purge(limit=1)
-                else:
-                    embeded_message = self.embed.embed_message(ctx, "Password received. Sending Embed", "Master Embed Successful", "light-green", "Haku Chan", "no", "no", "yes", "bot", )
-                    msg = await ctx.message.author.send(embed = embeded_message)
-                    await msg.delete(delay = 5)
-
-                embed = Embed(self.client)
-
-            elif (in_activity):
-                embeded_message = error.display_error(self.client, 9, channel = channel.name, action = "send embed", guild = server.name)
-                await ctx.send(embed = embeded_message)
-
-            if (is_admin and not in_activity):
-                embeded_message = self.embed.embed_message(ctx, description, title, colour, author_name, display_thumbnail, thumbnail, display_author_pic, author_pic, image)
-                if (not dm):
-                    await channel.send(embed = embeded_message)
-                elif (not in_activity):
-                    await ctx.send(embed = embeded_message)
 
         elif (not context_in_activity):
             #error message if channel specified is not found and the guild specified is not found
