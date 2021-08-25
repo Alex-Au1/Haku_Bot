@@ -3,7 +3,7 @@ from discord.ext import commands
 from database.database import Database, DbItem
 import tools.members as Members
 import tools.error as Error
-from typing, import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 
 DMCHANNEL = f"{Members.BOT_NICKNAMES[1]}'s DMs with Name"
 
