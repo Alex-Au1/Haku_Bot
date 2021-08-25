@@ -187,5 +187,6 @@ class Pagination():
     #   pages for multiple messages
     # effects: edits messages
     @classmethod
-    async def multi_page_react(cls, client: discord.Client, msg_lst: List[ButtonedMsg], generate_pg: Callable[[int, int, Dict[str, Any]], discord.Embed], kwargs: Dict[str, Any]):
+    async def multi_page_react(cls, client: discord.Client, msg_lst: List[ButtonedMsg], 
+                               generate_pg: Callable[[int, int, Dict[str, Any]], discord.Embed], kwargs: Dict[str, Any]):
         await asyncio.gather(*(cls.page_react(client, m.message, m.page, m.max_page, generate_pg, kwargs) for m in msg_lst))
