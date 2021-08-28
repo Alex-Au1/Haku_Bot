@@ -3,10 +3,10 @@ from discord.ext import commands
 from database.database import Database, DbItem
 import tools.members as Members
 import tools.error as Error
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 
 DMCHANNEL = f"{Members.BOT_NICKNAMES[1]}'s DMs with Name"
-
+D
 ACTIVITY_CHANNEL = "ACTIVITY"
 CHANNEL_TYPES = [ACTIVITY_CHANNEL]
 AC_CHANGE = {}
@@ -129,7 +129,7 @@ async def update_tracked_channel(client, server: discord.Guild, channel_stats: C
 # fixed_channel_send(client, channel, server, channel_type, channel_stats, embed) Sends a message to a channel
 #   remembered by the bot
 # effects: sends a message and may make another channel
-async def fixed_channel_send(client, channel: discord.TextChannel, server: discord.Guild,
+async def fixed_channel_send(client, channel: Union[discord.TextChannel, int], server: discord.Guild,
                              channel_type: str, channel_stats:ChannelStats ,
                              embed: Optional[discord.Embed] = None, msg: Optional[str] = None) -> discord.TextChannel:
     try:
@@ -146,7 +146,7 @@ async def fixed_channel_send(client, channel: discord.TextChannel, server: disco
 # in_activity_channel(channel_id, server_id) Determines whether the activity channel
 #   represented by 'channel_id' is an activity channel
 def in_activity_channel(channel_id: int, server_id: Optional[int] = None) -> bool:
-    return (in_tracked_channel(channel_id, CHANNEL_INFO[ACTIVITY_CHANNEL].col, server_id) or channel_id == DEFAULT_GLOBAL_CHANNEL)
+    return (in_tracked_channel(channel_id, CHANNEL_INFO[ACTIVITY_CHANNEL].col, server_id))
 
 
 # get_track_ch_data(client, server_id) Retrieves data about a certain activity channel
@@ -169,7 +169,7 @@ async def update_activity_channel(client, server: discord.Guild, server_channel_
 
 # fixed_activity_send(client, channel, server, channel_type, embed) Sends a message to an activity channel
 #   remembered by the bot
-async def fixed_activity_send(client: discord.Client, channel: discord.TextChannel, server: discord.Guild,
+async def fixed_activity_send(client: discord.Client, channel: Union[discord.TextChannel, int], server: discord.Guild,
                               embed: Optional[discord.Embed] = None, msg: Optional[str] = None) -> discord.TextChannel:
     return await fixed_channel_send(client, channel, server, ACTIVITY_CHANNEL, CHANNEL_INFO[ACTIVITY_CHANNEL], embed, msg)
 
