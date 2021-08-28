@@ -6,7 +6,6 @@ import tools.error as Error
 from typing import List, Optional, Dict, Any, Union
 
 DMCHANNEL = f"{Members.BOT_NICKNAMES[1]}'s DMs with Name"
-D
 ACTIVITY_CHANNEL = "ACTIVITY"
 CHANNEL_TYPES = [ACTIVITY_CHANNEL]
 AC_CHANGE = {}
