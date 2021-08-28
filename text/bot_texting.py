@@ -59,7 +59,7 @@ class Add_Emoji:
 class Texting(commands.Cog):
 
     #constructor
-    def __init__(self, client):
+    def __init__(self, client: discord.Client):
         self.client = client
         self.searchtools = SearchTools(self.client)
         self.embed = Embed(self.client)
@@ -121,12 +121,14 @@ class Texting(commands.Cog):
                                 public: bool = False,
                                 target: Optional[discord.abc.User] = None) -> discord.Embed:
         doer_id = None
+        initiator = None
 
         if (doer is None and message is None):
             description = "Someone"
         elif (doer is None):
             doer_name = members.convert_name(message.author.id, message.author.name)
             doer_id = message.author.id
+            initiator = message.author
             description = f"**{members.convert_name(message.author.id, message.author.name)}**"
 
             if (msg_type == "embed"):
@@ -137,6 +139,7 @@ class Texting(commands.Cog):
         else:
             doer_name = members.convert_name(doer.id, doer)
             doer_id = doer.id
+            initiator = doer
             description = f"**{doer_name}**"
 
             if (msg_type == "embed"):
@@ -212,7 +215,9 @@ class Texting(commands.Cog):
         # embed the message
         if (msg_type == "embed"):
             if (doer_id is not None and channel.type != discord.ChannelType.private):
-                description = members.notify_invisible(doer_name, doer_id, doer_status, description)
+                if (doer is None):
+                    doer = message.author
+                description = members.notify_invisible(doer_name, initiator, doer_status, description)
             embeded_message = self.embed.embed_message(None, description, title, colour, "no", "yes", thumbnail, "no", "no", image = "no")
         elif (msg_type == "message"):
             result_message = ""
@@ -240,7 +245,7 @@ class Texting(commands.Cog):
             action_time_sec_title += "Edit"
 
         if (channel.type == discord.ChannelType.private):
-            channel_name = f"Haku's DMs with {members.convert_name(channel.recipient.id, channel.recipient.name)}"
+            channel_name = ChannelTools.get_dm_channel(members.convert_name(channel.recipient.id, channel.recipient.name))
             channel_link = ""
         else:
             channel_name = channel.name
