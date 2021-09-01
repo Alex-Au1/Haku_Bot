@@ -1,11 +1,60 @@
-import discord, enum, random
+import discord, enum, random, copy
 from discord.ext import commands
 import pics.image_links as pics
 import tools.members as members
-from tools.pagination import Pagination
 from tools.string import StringTools
 from discord_components import Button
 from typing import Optional, Dict, Union, Callable, Any, List
+
+
+# EmbedParts: Different parts in an embed
+class EmbedParts(enum.Enum):
+    Title = "title for the embed"
+    Description = "description for the embed"
+    Fields = "no. of fields in the embed"
+    FieldTitle = "title for one of your fields"
+    FieldMessage = "message for one of your fields"
+    Footer = "footer for the embed"
+    AuthorName = "author name for the embed"
+    Total = "embed size"
+
+
+# EmbedImages: Different image parts for an embed
+class EmbedImages(enum.Enum):
+    Thumbnail = "thumbnail"
+    Image = "image"
+    AuthorImage = "author pic"
+    FooterImage = "footer pic"
+    AuthorDesc = "author and description"
+
+
+EMBED_LIMITS = {EmbedParts.Title: 256, EmbedParts.Description: 4096, EmbedParts.Fields: 25,
+                EmbedParts.FieldTitle: 256, EmbedParts.FieldMessage: 1024, EmbedParts.Footer: 2048,
+                EmbedParts.AuthorName: 256, EmbedParts.Total: 6000}
+
+
+# EmbededMessage: class for an embed
+class EmbededMessage():
+    def __init__(self, embed: discord.Embed, error: bool, file: Optional[str] = None):
+        self.embed = embed
+        self.error = error
+        self.file = file
+
+
+# EmbedCheck: Data for checking limits on an embed
+class EmbedCheck():
+    def __init__(self, error: bool, value: Any, error_embed: discord.Embed):
+        self.error = error
+        self.value = value
+        self.error_embed = error_embed
+
+    # get_embed(embeded_message) Retrieves the appropriate embed for based off the
+    #   check
+    def get_embed(self, embeded_message: discord.Embed) -> discord.Embed:
+        if (self.error):
+            return self.error_embed
+        else:
+            return embeded_message
 
 
 #colours for an embed
@@ -78,161 +127,243 @@ class ColourList(enum.Enum):
 
 #embed messages
 class Embed:
+    EMBED_IMG_SELF = "self"
+    EMBED_IMG_BOT = "bot"
+    EMBED_DEFAULT_COLOUR = ColourList.LightPurple.value
+
     #constructor
     def __init__(self, client: discord.Client):
         self.client = client
         self.RANDOM_NAME = -1
         self.names = members.BOT_NICKNAMES
-        self.EMBED_LIMIT = 6000
-        self.EMBED_ERRORS = {"thumbnail": 0, "image": 1, "too long": 2}
+
+
+    # embed_limit_error(type, size) Formats the error when a part of the embed
+    #   exceeds its limit
+    def embed_limit_error(self, type: EmbedParts, size: int) -> discord.Embed:
+        description = f"Your {type.value} with the size `{size}` exceeds the limit of the size `{EMBED_LIMITS[type]}`"
+        title = f"ERROR 16: Your {StringTools.str_capitalize(type.value)} is too Big"
+        return discord.Embed.from_dict({"title": title, "description": description,
+                                        "color": ColourList.Red.value.hex,
+                                        "image": Pics.get_image_link(Pics.ImageCategory.Disappointed, 0)})
+
+
+    # embed_link_error(self, type) Formats the embed when a picture in the embed
+    #   is invalid
+    def embed_link_error(self, type: EmbedImages, image: str) -> discord.Embed:
+        if (type != EmbedImages.AuthorDesc):
+            description = f"The picture for the {type.value} by the content `{image}` is invalid"
+            title = f"ERROR 17: Invalid {StringTools.str_capitalize(type.value)}"
+        else:
+            description = "The author's image cannot be displayed without an author name in the embed"
+            title = f"ERROR 18: Author Image Must Have Author Name"
+        return discord.Embed.from_dict({"title": title, "description": description,
+                                        "color": ColourList.Red.value.hex,
+                                        "image": Pics.get_image_link(Pics.ImageCategory.Disappointed, 0)})
+
+
+    # check_embed_limit(type, to_check, success_func, success_args, success_kwargs)
+    #   Calls 'success_func' if the length of 'to_check' does not exceed its part's
+    #   corresponding limit
+    def check_embed_limit(self, type: EmbedParts, to_check: Any, success_func: Optional[Callable[[...], Any]] = None,
+                          success_args: List[Any] = [], success_kwargs: Dict[str, Any] = {},
+                          return_value: Optional[Any] = None) -> EmbedCheck:
+        error = False
+        size = len(to_check)
+
+        if (size > EMBED_LIMITS[type]):
+            error = True
+            return EmbedCheck(error, None, self.embed_limit_error(type, size))
+        elif (success_func is not None):
+            return EmbedCheck(error, success_func(*success_args, **success_kwargs), None)
+        elif (return_value is not None):
+            return EmbedCheck(error, return_value, None)
+        else:
+            return None
+
 
     # embed_message(ctx, description, title, colour, author_name, display_thumbnail,
     #               thumbnail, display_author_pic, author_pic, image)
     #   Make an embeded message
-    def embed_message(self, ctx: commands.Context, description: str, title: str, colour: Union[str, int],
-                      author_name: str, display_thumbnail: str, thumbnail: str, display_author_pic: str,
-                      author_pic: str, image: str = StringTools.FALSE_DEFAULT) -> Optional[discord.Embed]:
-
+    def embed_message(self, ctx: commands.Context, description: Optional[str], title: Optional[str], colour: Union[str, int],
+                      author_name: Optional[str], thumbnail: Optional[str], author_pic: Optional[str],
+                      image: Optional[str] = None) -> EmbededMessage:
+        embed_check = None
         #if the user does not want a description
-        if (description.lower() == StringTools.NONE):
+        if (description is None):
             description = ""
-        try:
-            embeded_message = discord.Embed(description = description)
-        except:
-            return self.EMBED_ERRORS["too long"]
-
+        embed_check = self.check_embed_limit(EmbedParts.Description, description, discord.Embed, success_kwargs = {"description": description})
+        embeded_message = embed_check.get_embed(embed_check.value)
 
         #set the title
-        title_check = StringTools.convert_str(title.lower())
-        if (title_check is not None):
-            if (title_check == f"\\{StringTools.NONE}"):
-                title = StringTools.NONE
+        if (not embed_check.error):
+            title_check = StringTools.convert_str(title)
+            if (title_check is not None and title is not None):
+                if (title_check == f"\\{StringTools.NONE}"):
+                    title = StringTools.NONE
 
-            try:
-                embeded_message.title = title
-            except:
-                return self.EMBED_ERRORS["too long"]
+                embed_check = self.check_embed_limit(EmbedParts.Title, title, return_value = title)
+                embeded_message.title = embed_check.value
+                embeded_message = embed_check.get_embed(embeded_message)
 
-        #check if the entered colour matches a colour on the list
-        found_colour = ColourList.get_name(colour)
-        if (found_colour is not None):
-            embeded_message.colour = found_colour.hex
-        else:
-            try:
-                embeded_message.colour = colour
-            except:
-                embeded_message.colour = 0x33CCFF
-
-
-        #error if the user does not want to display author name but accepts to
-        #display author picture
-        if (author_name.lower() == StringTools.NONE and display_author_pic.lower() == StringTools.TRUE_DEFAULT):
-
-            error_message = "author's image cannot be displayed without an author name"
-
-            error_embed = discord.Embed(title="ERROR",
-                                        description="author's image cannot be displayed without an author name",
-                                        color=0xFF0000)
-
-            error_embed.set_author(name = ctx.message.author.name,
-                                   icon_url = ctx.message.author.avatar_url)
-
-            return error_embed
+        if (not embed_check.error):
+            #check if the entered colour matches a colour on the list
+            found_colour = ColourList.get_name(colour)
+            if (found_colour is not None):
+                embeded_message.colour = found_colour.hex
+            else:
+                try:
+                    embeded_message.colour = colour
+                except:
+                    embeded_message.colour = self.EMBED_DEFAULT_COLOUR.hex
 
 
-        elif (author_name.lower() != StringTools.NONE):
+            #error if the user does not want to display author name but accepts to
+            #display author picture
+            if (author_name is None and author_pic is not None):
+                error_message = "author's image cannot be displayed without an author name"
+                embeded_message = discord.Embed(title="ERROR",
+                                                description="author's image cannot be displayed without an author name",
+                                                color=0xFF0000)
+                embed_check.error = True
+                embeded_message.set_author(name = ctx.message.author.name,
+                                           icon_url = ctx.message.author.avatar_url)
 
-            #set the author's image
-            if (display_author_pic == StringTools.TRUE_DEFAULT):
-                if (author_pic.lower() == "self"):
-                    embeded_message.set_author(name = author_name,
-                                               icon_url = ctx.message.author.avatar_url)
+            elif (author_name is not None):
+                embed_check = self.check_embed_limit(EmbedParts.AuthorName, author_name, return_value = author_name)
+                author_name = embed_check.value
+                embeded_message = embed_check.get_embed(embeded_message)
 
-                elif(author_pic.lower() == "bot"):
-                    embeded_message.set_author(name = author_name,
-                                               icon_url = self.client.user.avatar_url)
-                else:
-                    if (author_pic[0] == "<" and author_pic[-1] == ">"):
-                        author_url = author_pic[1:-1]
+                #set the author's image
+                if (not embed_check.error and author_pic is not None):
+                    author_pic = StringTools.get_link(author_pic)
+                    if (author_pic.lower() == self.EMBED_IMG_SELF):
+                        embeded_message.set_author(name = author_name,
+                                                   icon_url = ctx.message.author.avatar_url)
+
+                    elif(author_pic.lower() == self.EMBED_IMG_BOT):
+                        embeded_message.set_author(name = author_name,
+                                                   icon_url = self.client.user.avatar_url)
                     else:
-                        author_url = author_pic
-
-                    embeded_message.set_author(name = author_name,
-                                               icon_url = author_url)
-
+                        author_pic = StringTools.get_link(author_pic)
+                        try:
+                            embeded_message.set_author(name = author_name,
+                                                   icon_url = author_pic)
+                        except:
+                            embed_check.error = True
+                            embeded_message = self.embed_link_error(EmbedImages.AuthorImage, author_pic)
 
         #set the thumbnail
-        if (display_thumbnail.lower() != StringTools.FALSE_DEFAULT):
-
-            if (thumbnail.lower() == "self"):
+        if (not embed_check.error and thumbnail is not None):
+            thumbnail = StringTools.get_link(thumbnail)
+            if (thumbnail.lower() == self.EMBED_IMG_SELF):
                 embeded_message.set_thumbnail(url = ctx.message.author.avatar_url)
-            elif (thumbnail.lower() == "bot"):
+            elif (thumbnail.lower() == self.EMBED_IMG_BOT):
                 embeded_message.set_thumbnail(url = self.client.user.avatar_url)
             else:
-                if (thumbnail[0] == "<" and thumbnail[-1] == ">"):
-                    thumbnail = thumbnail[1:-1]
-
+                thumbnail = StringTools.get_link(thumbnail)
                 try:
                     embeded_message.set_thumbnail(url = thumbnail)
                 except:
-                    return self.EMBED_ERRORS["thumbnail"]
+                    embed_check.error = True
+                    embeded_message = self.embed_link_error(EmbedImages.Thumbnail, thumbnail)
 
         #set the image
-        if (image.lower() != StringTools.FALSE_DEFAULT):
-            if (image.lower() == "self"):
+        if (not embed_check.error and image is not None):
+            if (image.lower() == self.EMBED_IMG_SELF):
                 embeded_message.set_image(url = ctx.message.author.avatar_url)
-            elif (image.lower() == "bot"):
+            elif (image.lower() == self.EMBED_IMG_BOT):
                 embeded_message.set_image(url = self.client.user.avatar_url)
             else:
-                if (image[0] == "<" and image[-1] == ">"):
-                    image = image[1:-1]
-
+                image = StringTools.get_link(image)
                 try:
                     embeded_message.set_image(url = image)
                 except:
-                    return self.EMBED_ERRORS["image"]
+                    embed_check.error = True
+                    embeded_message = self.embed_link_error(EmbedImages.Thumbnail, image)
 
-        return embeded_message
+        if (not embed_check.error):
+            embed_check = self.check_embed_limit(EmbedParts.Total, embeded_message, return_value = embeded_message)
+            embeded_message = embed_check.get_embed(embeded_message)
+        return EmbededMessage(embeded_message, embed_check.error)
 
 
     # add_section(self, embeded_message, field_title, field_message, inline)
     #   adds a field to the embed
-    def add_section(self, embeded_message: discord.Embed, field_title: str, field_message: str,
-                    inline: bool = False) -> discord.Embed:
-        embeded_message.add_field(name=field_title, value=field_message, inline=inline)
-        return embeded_message
+    def add_section(self, embeded_message: Union[discord.Embed, EmbededMessage], field_title: str, field_message: str,
+                    inline: bool = False) -> EmbededMessage:
+        file = None
+        embed_check = None
+        if (isinstance(embeded_message, EmbededMessage)):
+            embed_check = EmbedCheck(embeded_message.error, None, None)
+            file = embeded_message.file
+            embeded_message = embeded_message.embed
+
+        embed_check = self.check_embed_limit(EmbedParts.FieldTitle, field_title, return_value = field_title)
+        field_title = embed_check.value
+        embeded_message = embed_check.get_embed(embeded_message)
+
+        if (not embed_check.error):
+            embed_check = self.check_embed_limit(EmbedParts.FieldMessage, field_message, return_value = field_message)
+            field_message = embed_check.value
+            embeded_message = embed_check.get_embed(embeded_message)
+
+        if (not embed_check.error):
+            embed_check = self.check_embed_limit(EmbedParts.Fields, embeded_message.fields, embeded_message.add_field,
+                                                 success_kwargs = {"name": field_title, "value": field_message, "inline": inline})
+            embeded_message = embed_check.get_embed(embed_check.value)
+        return EmbededMessage(embeded_message, embed_check.error, file = file)
 
 
     # multi_add_section(self, embeded_message, section_contents) Adds multiple
     #   sections to an embed
-    def multi_add_section(self, embeded_message: discord.Embed, section_contents: Dict[str, str]) -> discord.Embed:
+    def multi_add_section(self, embeded_message: Union[discord.Embed, EmbededMessage], section_contents: Dict[str, str]) -> EmbededMessage:
         section_len = len(section_contents)
+        file = None
+        error = False
+        if (isinstance(embeded_message, EmbededMessage)):
+            error = embeded_message.error
+            file = embeded_message.file
+            embeded_message = embeded_message.embed
 
         for title in section_contents:
             embeded_message = self.add_section(embeded_message, title, section_contents[title])
 
+            if (embeded_message.error):
+                break
+
         return embeded_message
 
 
-    #add a footer to the embed
-    def add_footer(self, ctx, embeded_message: discord.Embed, text: str, footer_pic:str = StringTools.NONE):
+    # add a footer to the embed
+    def add_footer(self, ctx, embeded_message: Union[discord.Embed, EmbededMessage], text: str, footer_pic: Optional[str] = None) -> EmbededMessage:
+        file = None
+        embed_check = None
+        if (isinstance(embeded_message, EmbededMessage)):
+            embed_check = EmbedCheck(embeded_message.error, None, None)
+            file = embeded_message.file
+            embeded_message = embeded_message.embed
+
+        embed_check = self.check_embed_limit(EmbedParts.Footer, text, return_value = text)
+        embeded_message = embed_check.get_embed(embeded_message)
 
         #if the user does not want to set an image for the footer
-        if (footer_pic == StringTools.NONE):
+        if (not embed_check.error and footer_pic is None):
             embeded_message.set_footer(text=text)
 
         #set the image for the footer
-        else:
-            if (footer_pic == "self"):
+        elif (not embed_check.error):
+            lowered_footer_pic = footer_pic.lower()
+            if (lowered_footer_pic == self.EMBED_IMG_SELF):
                 url = ctx.message.author.avatar_url
-            elif (footer_pic == "bot"):
+            elif (lowered_footer_pic == self.EMBED_IMG_BOT):
                 url = self.client.user.avatar_url
             else:
                 url = footer_pic
 
             embeded_message.set_footer(text=text, icon_url=url)
 
-        return embeded_message
+        return EmbededMessage(embeded_message, embed_check.error, file = file)
 
 
     # retrieve_img(image) Retrieves an image to put into the embed
@@ -249,7 +380,7 @@ class Embed:
             image_link = image
 
         elif (image is None):
-            image_link = StringTools.FALSE_DEFAULT
+            image_link = None
 
         img_is_file = False
         if (isinstance(image_link, dict)):
@@ -260,24 +391,19 @@ class Embed:
 
     # context_embed(ctx, description, title, colour, thumbnail, image, name) Embed template for the user context
     def context_embed(self, ctx: commands.Context, description: str, title: str, colour: Union[str, int],
-                      thumbnail:str = StringTools.NONE, image: Optional[Union[str, Dict[pics.ImageCategory, int]]] = None,
-                      name: Optional[str] = None) -> Union[Optional[discord.Embed], Dict[str, Union[str, Optional[discord.Embed]]]]:
+                      thumbnail: Optional[str], image: Optional[Union[str, Dict[pics.ImageCategory, int]]] = None,
+                      name: Optional[str] = None) -> EmbededMessage:
         if (name is None):
             name = members.convert_name(ctx.author.id, ctx.author)
         img_is_file, image_link = self.retrieve_img(image)
 
-        if (thumbnail == StringTools.NONE):
-            thumbnail = StringTools.FALSE_DEFAULT
-            set_thumbnail = StringTools.FALSE_DEFAULT
-        else:
-            set_thumbnail = StringTools.TRUE_DEFAULT
-
         if (img_is_file):
             url = image_link["url"]
-            embeded_message = self.embed_message(ctx, description, title, colour, name, set_thumbnail, thumbnail, StringTools.TRUE_DEFAULT, "self", url)
-            return {"file": image_link["file"], "embed": embeded_message}
+            embeded_message = self.embed_message(ctx, description, title, colour, name, thumbnail, self.EMBED_IMG_SELF, url)
+            embeded_message.file = image_link["file"]
+            return embeded_message
         else:
-            embeded_message = self.embed_message(ctx, description, title, colour, name, set_thumbnail, thumbnail, StringTools.TRUE_DEFAULT, "self", image_link)
+            embeded_message = self.embed_message(ctx, description, title, colour, name, thumbnail, self.EMBED_IMG_SELF, image_link)
             return embeded_message
 
 
@@ -285,7 +411,7 @@ class Embed:
     # bot_embed(ctx, description, title, colour, name_choice, image) Embed template for the bot
     # requires: -1 <= name_choice < len(self.names)
     def bot_embed(self, ctx: commands.Context, description: str, title: str, colour: Union[str, int],
-                  name_choice: int, image: Optional[Union[str, Dict[pics.ImageCategory, int]]] = None) -> Union[Optional[discord.Embed], Dict[str, Union[str, Optional[discord.Embed]]]]:
+                  name_choice: int, image: Optional[Union[str, Dict[pics.ImageCategory, int]]] = None) -> EmbededMessage:
         img_is_file, image_link = self.retrieve_img(image)
 
         # name for the author of the embed
@@ -299,10 +425,11 @@ class Embed:
 
         if (img_is_file):
             url = image_link["url"]
-            embeded_message = self.embed_message(ctx, description, title, colour, name, "no", "no", "yes", "bot", url)
-            return {"file": image_link["file"], "embed": embeded_message}
+            embeded_message = self.embed_message(ctx, description, title, colour, name, None, self.EMBED_IMG_BOT, url)
+            embeded_message.file = image_link["file"]
+            return embeded_message
         else:
-            embeded_message = self.embed_message(ctx, description, title, colour, name, "no", "no", "yes", "bot", image_link)
+            embeded_message = self.embed_message(ctx, description, title, colour, name, None, self.EMBED_IMG_BOT, image_link)
             return embeded_message
 
 
@@ -323,21 +450,3 @@ class Embed:
         elif (choice == 1):
             embeded_message = self.bot_embed(None, description, title, "yellow", self.RANDOM_NAME, {pics.ImageCategory.Disappointed: 1})
         return embeded_message
-
-
-    # paginated_safe_send(self, ctx, embeded_message, paginated_componenets)
-    #    Sends a paginated embed if the embed does not exceed the maximum length
-    # requires: 0 < page
-    #           0 < max_page
-    # effects: sends and edits messages
-    async def paginated_safe_send(self, ctx: commands.Context, embeded_message: discord.Embed,
-                                  paginated_components: List[List[Button]], page: int, max_page: int,
-                                  generate_pg: Callable[[int, int, Dict[str, Any]], discord.Embed],
-                                  generate_pg_kwargs: Dict[str, Any]):
-        embed_len = len(embeded_message)
-        if (embed_len <= self.EMBED_LIMIT):
-            sent_message = await ctx.send(embed = embeded_message, components = paginated_components)
-            await Pagination.page_react(self.client, sent_message, page, max_page, generate_pg, generate_pg_kwargs)
-        else:
-            embeded_message = Error.display_error(self.client, 16, object = "embed", measure = "character length of", your_size = str(embed_len), limit_size = str(self.EMBED_LIMIT))
-            await ctx.send(embed = embeded_message)
