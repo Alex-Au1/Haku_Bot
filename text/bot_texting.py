@@ -8,7 +8,7 @@ import pics.image_links as pics
 from tools.string import StringTools
 from tools.discord_search import SearchAttributes, SearchTools
 from tools.string import StringTools
-from tools.embed import Embed
+from tools.embed import Embed, EmbededMessage
 import tools.datetime as DateTools
 import tools.members as members
 from tools.validate import Validate
@@ -119,7 +119,7 @@ class Texting(commands.Cog):
                                 channel: Union[discord.TextChannel, discord.DMChannel],
                                 type: str = "delete", msg_type: str = "embed",
                                 public: bool = False,
-                                target: Optional[discord.abc.User] = None) -> discord.Embed:
+                                target: Optional[discord.abc.User] = None) -> Union[EmbededMessage, str]:
         doer_id = None
         initiator = None
 
@@ -218,7 +218,7 @@ class Texting(commands.Cog):
                 if (doer is None):
                     doer = message.author
                 description = members.notify_invisible(doer_name, initiator, doer_status, description)
-            embeded_message = self.embed.embed_message(None, description, title, colour, "no", "yes", thumbnail, "no", "no", image = "no")
+            embeded_message = self.embed.embed_message(None, description, title, colour, None, thumbnail, None)
         elif (msg_type == "message"):
             result_message = ""
             if (type == "delete"):
@@ -254,11 +254,11 @@ class Texting(commands.Cog):
         # add footer for the author of the message
         if (message is not None or (target is not None and type == "delete") or channel.type == discord.ChannelType.private):
             if (channel.type == discord.ChannelType.private):
-                footer_pic = channel.recipient.avatar_url
+                footer_pic = str(channel.recipient.avatar_url)
             elif (target is not None):
-                footer_pic = target.avatar_url
+                footer_pic = str(target.avatar_url)
             else:
-                footer_pic = message.author.avatar_url
+                footer_pic = str(message.author.avatar_url)
 
             if (msg_type == "embed"):
                 embeded_message = self.embed.add_footer(None, embeded_message, f"Message Written By: {victim_name}", footer_pic = footer_pic)
@@ -338,7 +338,7 @@ class Texting(commands.Cog):
                         server_name = server.name
                         server_icon = server.icon_url
 
-                    embeded_message.set_author(name = server_name,
+                    embeded_message.embed.set_author(name = server_name,
                                                icon_url = server_icon)
                 elif (isinstance(server, str)):
                     if (doer is not None):
@@ -455,7 +455,7 @@ class Texting(commands.Cog):
 
     # show_deleted_content(self, embeded_message, channel) Inputs the deleted
     #   message into the embed, 'embeded_message'
-    def show_deleted_content(self, embeded_message: discord.Embed, message: discord.Message,
+    def show_deleted_content(self, embeded_message: EmbededMessage, message: discord.Message,
                              channel: Union[discord.TextChannel, discord.DMChannel]) -> discord.Embed:
         #check the message for embeds
         embed_list = message.embeds
@@ -486,7 +486,7 @@ class Texting(commands.Cog):
             embed_content += "```"
 
             if (non_empty_embeds and embed_format["embed_content"].strip() != ""):
-                embeded_message.add_field(name=embed_content_title, value=f"{embed_content}", inline=False)
+                embeded_message.embed.add_field(name=embed_content_title, value=f"{embed_content}", inline=False)
 
         else:
             embeds_check = False
@@ -507,13 +507,13 @@ class Texting(commands.Cog):
             content_title = "\U0001F5D2 The Content of the Message"
 
         if (shortened_message != ""):
-            embeded_message.add_field(name=content_title, value=f"`{shortened_message}`", inline=False)
+            embeded_message = self.embed.add_section(embeded_message.embed, content_title, f"`{shortened_message}`")
         return embeded_message
 
 
     # show_editted_content(self, embeded_message, before, after, channel)
     #   Inputs the editted content to the embed, 'embeded_message'
-    def show_editted_content(self, embeded_message: discord.Embed, before: Optional[discord.Message], after: Optional[discord.Message]) -> discord.Embed:
+    def show_editted_content(self, embeded_message: EmbededMessage, before: Optional[discord.Message], after: Optional[discord.Message]) -> discord.Embed:
         if (before is not None):
             #check the before message for embeds
             embed_list = before.embeds
@@ -536,7 +536,7 @@ class Texting(commands.Cog):
             embed_content += "```"
 
             if (non_empty_before_eb):
-                embeded_message.add_field(name=embed_content_title, value=f"{embed_content}", inline=False)
+                embeded_message.embed.add_field(name=embed_content_title, value=f"{embed_content}", inline=False)
 
         else:
             embeds_before_check = False
@@ -565,7 +565,7 @@ class Texting(commands.Cog):
             embed_content += "```"
 
             if (non_empty_after_eb):
-                embeded_message.add_field(name=embed_content_title, value=f"{embed_content}", inline=False)
+                embeded_message.embed.add_field(name=embed_content_title, value=f"{embed_content}", inline=False)
 
         else:
             embeds_after_check = False
@@ -595,7 +595,7 @@ class Texting(commands.Cog):
                 shortened_message = discord.utils.remove_markdown(before.content)
                 content_title = "\U0001F5D2 Old Content of the Message"
 
-            embeded_message.add_field(name=content_title, value=f"`{shortened_message}`", inline=False)
+            embeded_message.embed.add_field(name=content_title, value=f"`{shortened_message}`", inline=False)
 
 
         #if the message is too long to display
@@ -608,7 +608,7 @@ class Texting(commands.Cog):
             content_title = "\U0001F5D2 New Content of the Message"
 
         if (shortened_message != ""):
-            embeded_message.add_field(name=content_title, value=f"`{shortened_message}`", inline=False)
+            embeded_message.embed.add_field(name=content_title, value=f"`{shortened_message}`", inline=False)
         return embeded_message
 
 
@@ -850,24 +850,19 @@ class Texting(commands.Cog):
     #   converts user's messages to embeded messages
     # effects: sends an embed and deletes message
     async def user_embed(self, ctx: commands.Context, description: str, title: str,
-                         colour: str, display_thumbnail: str, thumbnail: str, image: str,
-                         search_channel: str = StringTools.NONE, search_guild: str = StringTools.NONE):
+                         colour: str, thumbnail: str, image: str, search_channel: str = StringTools.NONE,
+                         search_guild: str = StringTools.NONE):
 
-        ch_sev_result = await self.searchtools.get_ch_and_server(ctx, search_channel, search_guild)
-        context_in_activity = ChannelTools.in_activity_channel(ctx.message.channel.id, server_id = ctx.message.guild.id)
+        error = False
+        error = await ChannelTools.validate_activity_channel(ctx, error)
+        error, thumbnail = await self.validate.validate_image(ctx, error, thumbnail, "thumbnail")
+        error, image = await self.validate.validate_image(ctx, error, image, "image")
+        error, search_guild, search_channel = await SearchTools.validate_sev_ch(self, ctx, error, search_channel, search_guild, action = "send embed",
+                                                                                allow_dm = True, allow_default = True)
 
-        dm = ch_sev_result["dm"]
-        channel = ch_sev_result["channel"]
-        server = ch_sev_result["server"]
-        channel_search_type = ch_sev_result["channel_search_type"]
-        guild_search_type = ch_sev_result["guild_search_type"]
-        in_activity = False
-
-        #if the channel is found,send the specific embed
-        if (not context_in_activity and channel is not None and server is not None):
-            if (not dm):
-                in_activity = ChannelTools.in_activity_channel(channel.id, server_id = server.id)
-
+        if (not error):
+            description = StringTools.convert_str(description)
+            title = StringTools.convert_str(title)
 
             #delete the message that invoked the command
             try:
@@ -875,32 +870,8 @@ class Texting(commands.Cog):
             except:
                 pass
 
-            if (not in_activity and not dm):
-                embeded_message = self.embed.embed_message(ctx, description, title, colour, ctx.message.author.name, display_thumbnail, thumbnail, "yes", "self", image)
-            elif(not dm):
-                embeded_message = error.display_error(self.client, 9, channel = channel.name, action = "send embed", guild = server.name)
-
-            if (not in_activity and ctx.channel.type == discord.ChannelType.private and (search_channel != StringTools.NONE or search_guild != StringTools.NONE)):
-                confim_embed = self.embed.bot_embed(ctx, "The Embed was Successfully Sent", "Embed Sent", "light-green", 0, {pics.ImageCategory.Default: 0})
-                await ctx.send(embed = confim_embed)
-
-            if (dm or in_activity):
-                await ctx.send(embed = embeded_message)
-            elif (not in_activity):
-                await channel.send(embed = embeded_message)
-
-        elif (not context_in_activity):
-            #error message if channel specified is not found and the guild specified is not found
-            if((server is None) and (channel is None)):
-                embed = Embed(self.client)
-                embeded_message = error.display_error(self.client, 3, search_guild = search_guild, search_channel = search_channel, guild_search_type = guild_search_type, channel_search_type = channel_search_type)
-                await ctx.send(embed = embeded_message)
-
-            #error message if channel specified is not found
-            elif(channel is None):
-                embed = Embed(self.client)
-                embeded_message = error.display_error(self.client, 5, search_channel = search_channel, channel_search_type = channel_search_type)
-                await ctx.send(embed = embeded_message)
+            embeded_message = self.embed.embed_message(ctx, description, title, colour, ctx.message.author.name, thumbnail, Embed.EMBED_IMG_SELF, image)
+            await search_channel.send(embed = embeded_message.embed, file = embeded_message.file)
 
 
     # hello(ctx) greets the user with hello
@@ -914,9 +885,9 @@ class Texting(commands.Cog):
             name = members.convert_name(ctx.message.author.id, ctx.message.author);
 
             image = pics.get_image_link(pics.ImageCategory.Greet, 0)
-            embeded_message = self.embed.embed_message(ctx, f'Yahello {name}! \U0001F496 \U0001F497', "Haku says:", 0xD9B3FF, ctx.message.author.name, "no", "no", "yes", "self", image)
+            embeded_message = self.embed.embed_message(ctx, f'Yahello {name}! \U0001F496 \U0001F497', "Haku says:", 0xD9B3FF, ctx.message.author.name, None, Embed.EMBED_IMG_BOT, image)
             #display the embeded message
-            await ctx.send(embed = embeded_message)
+            await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
 
 
@@ -943,7 +914,7 @@ class Texting(commands.Cog):
             embeded_message = self.embed.bot_embed(ctx, f"To confirm your action to clear the selected messages, please enter the code:\n \n   ```fix\n{password}\n``` \n\n to the ***channel that you invoked the `$clear` command***",
                                                    "Confirmation to Clear Messages", "yellow", 0, {pics.ImageCategory.Default: 0})
 
-            await ctx.author.send(embed = embeded_message)
+            await ctx.author.send(embed = embeded_message.embed, file = embeded_message.file)
             invoked_command = ctx.message
             await ctx.message.delete(delay = 2)
 
@@ -978,7 +949,7 @@ class Texting(commands.Cog):
     # requires: 'action' is either "edit" or "delete"
     # effects: may edit, delete or send an embed
     async def noticeable_edit(self, ctx: commands.Context, last_message: discord.Message,
-                              embeded_message: discord.Embed, action: str = "edit") -> Optional[discord.Message]:
+                              embeded_message: EmbededMessage, action: str = "edit") -> Optional[discord.Message]:
         recent_message = await self.searchtools.get_last_message(ctx.channel)
 
         if (recent_message is not None and recent_message.id == last_message.id):
@@ -994,7 +965,7 @@ class Texting(commands.Cog):
 
         elif (action == "edit"):
             channel = last_message.channel
-            return_msg = await channel.send(embed = embeded_message)
+            return_msg = await channel.send(embed = embeded_message.embed, file = embeded_message.file)
             return return_msg
 
 
@@ -1002,10 +973,10 @@ class Texting(commands.Cog):
     #   the user until the correct value is reached
     # requires: 'values_to_check' is not empty
     # effects: deletes messages and sends embeds
-    async def continual_ask(self, ctx: commands.Context, question_embed: discord.Embed,
+    async def continual_ask(self, ctx: commands.Context, question_embed: EmbededMessage,
                             values_to_check: List[str], send_question: bool = True) -> str:
         if (send_question):
-            quest_msg = await ctx.message.channel.send(embed = question_embed)
+            quest_msg = await ctx.message.channel.send(embed = question_embed.embed, file = question_embed.file)
 
         def check(m):
             return (m.content and (m.author.id == ctx.author.id))
@@ -1030,7 +1001,7 @@ class Texting(commands.Cog):
             if (direction_msg is not None):
                 direction_msg = await self.noticeable_edit(ctx, direction_msg, embeded_message, action = "edit")
             else:
-                direction_msg = await ctx.channel.send(embed = embeded_message)
+                direction_msg = await ctx.channel.send(embed = embeded_message.embed, file = embeded_message.file)
             msg = await self.client.wait_for('message', check=check)
 
         # delete all the messages
@@ -1054,12 +1025,12 @@ class Texting(commands.Cog):
     #           1 <= current_page
     # effects: sends messages and deletes message
     async def paginated_continual_ask(self, ctx: commands.Context, current_page: int,
-                                      max_page: int, generate_pg: Callable[[int, int, Dict[str, Any]], discord.Embed],
+                                      max_page: int, generate_pg: Callable[[int, int, Dict[str, Any]], EmbededMessage],
                                       generate_pg_kwargs: Dict[str, Any], values_to_check: List[str],
                                       delete_question: bool = True) -> str:
         embeded_message = await generate_pg(current_page, max_page, generate_pg_kwargs)
         paginated_components = Pagination.make_page_buttons(current_page, max_page)
-        sent_message = await ctx.send(embed = embeded_message, components = paginated_components)
+        sent_message = await ctx.send(embed = embeded_message.embed, file = embeded_message.file, components = paginated_components)
 
         done, pending = await asyncio.wait([self.continual_ask(ctx, embeded_message, values_to_check, send_question = False),
                                             Pagination.page_react(self.client, sent_message, current_page, max_page, generate_pg, generate_pg_kwargs)],
@@ -1083,12 +1054,12 @@ class Texting(commands.Cog):
     # requires: 1 <= max_page
     #           1 <= current_page
     # effects: sends messages
-    async def announcment(self, ctx: commands.Context, embeded_message: discord.Embed,
+    async def announcment(self, ctx: commands.Context, embeded_message: EmbededMessage,
                           condition: Optional[Callable[discord.Guild, bool]] = None, condition_kwargs: Dict[str, Any] = {}):
         for g in self.client.guilds:
             if (condition is None or (condition is not None and condition(g, condition_kwargs))):
                 announcement_channel = self.searchtools.get_announcment_channel(g)
-                await announcement_channel.send(embed = embeded_message)
+                await announcement_channel.send(embed = embeded_message.embed, file = embeded_message.file)
 
 
     # paginated_announcement(self, ctx, msg_lst, current_page, max_page, generate_pg,
@@ -1099,14 +1070,14 @@ class Texting(commands.Cog):
     #           'paginated_components' is not empty
     # effects: sends messages
     async def paginated_announcement(self, ctx: commands.Context, msg_lst: List[ButtonedMsg],
-                                     current_page: int, max_page: int, embeded_message: discord.Embed,
+                                     current_page: int, max_page: int, embeded_message: EmbededMessage,
                                      generate_pg: Callable[[int, int, Dict[str, Any]], discord.Embed], generate_pg_kwargs: Dict[str, Any],
                                      paginated_components: List[List[Button]], pin: bool = False,
                                      condition: Optional[Callable[discord.Guild, bool]] = None, condition_kwargs: Dict[str, Any] = {}):
         for g in self.client.guilds:
             if (condition is None or (condition is not None and condition(g, condition_kwargs))):
                 announcement_channel = self.searchtools.get_announcment_channel(g)
-                temp_message = await announcement_channel.send(embed = embeded_message, components = paginated_components)
+                temp_message = await announcement_channel.send(embed = embeded_message.embed, file = embeded_message.file, components = paginated_components)
                 if (pin):
                     await temp_message.pin()
                 msg_lst.append(ButtonedMsg(temp_message, current_page, max_page))
@@ -1121,6 +1092,6 @@ class Texting(commands.Cog):
     # delay_send(cls, ctx, time, embed) Send an message with a delay
     # effects: sends messages
     @classmethod
-    async def delay_send(cls, ctx: commands.Context, time: float, embed: Optional[discord.Embed] = None):
+    async def delay_send(cls, ctx: commands.Context, time: float, embed: Optional[EmbededMessage] = None):
         await asyncio.sleep(time)
-        msg = await ctx.send(embed = embed)
+        msg = await ctx.send(embed = embed.embed, file = embed.file)
