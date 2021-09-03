@@ -1,6 +1,6 @@
 import discord
 import copy
-from tools.embed import Embed
+from tools.embed import Embed, EmbededMessage
 from tools.string import StringTools
 from typing import Optional
 
@@ -28,10 +28,9 @@ errors = {1: Err_Embed("Unable to Find Error", "Haku is unable to find the error
           13: Err_Embed("Please Enter a Valid Subcommand", "Please enter a valid subcommand for the command `{command}`"),
           14: Err_Embed("Please Enter a Valid Url for {type_article} {correct_type}", "Please enter a valid url for **{type_article} {correct_type}** in the parameter `{parameter}`"),
           15: Err_Embed("Please Enter a Valid {correct_type}", "Please enter a valid **{correct_type}** for the parameter `{parameter}`"),
-          16: Err_Embed("Your {object} is too Big", "Your {object} with {measure} `{your_size}` exceeds the limit of {measure} `{limit_size}`"),
-          17: Err_Embed("Unable to Find Selected {member}", "Haku is unable to find the {member} by the {member_search_type} `{search_member}`"),
-          18: Err_Embed("{action} Failed", "Haku is unable to {action}"),
-          19: Err_Embed("Please Enter {type_article} {correct_type} {scope} in between {left} and {right}", "Please enter {type_article} **{correct_type} {scope} in between __{left}__ and __{right}__** for the parameter `{parameter}`")}
+          18: Err_Embed("Unable to Find Selected {member}", "Haku is unable to find the {member} by the {member_search_type} `{search_member}`"),
+          19: Err_Embed("{action} Failed", "Haku is unable to {action}"),
+          20: Err_Embed("Please Enter {type_article} {correct_type} {scope} in between {left} and {right}", "Please enter {type_article} **{correct_type} {scope} in between __{left}__ and __{right}__** for the parameter `{parameter}`")}
 
 warnings = {}
 
@@ -41,7 +40,7 @@ warnings = {}
 # requires: 0 <= code
 #           0 <= choice
 #           'type' is either "error" or "warning"
-def display_error(client: discord.Client, code: int, type: str = "error", choice: int = 0, **kwargs) -> Optional[discord.Embed]:
+def display_error(client: discord.Client, code: int, type: str = "error", choice: int = 0, **kwargs) -> Optional[EmbededMessage]:
     embed = Embed(client)
     description = ""
     title = ""
