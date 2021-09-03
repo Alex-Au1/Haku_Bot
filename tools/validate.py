@@ -28,7 +28,7 @@ class Validate():
             if (verbose):
                 embeded_message = Error.display_error(self.client, 6, parameter = f"{param_name}",
                                                       type_article = "an", correct_type = "integer")
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
             return None
         else:
             return param
@@ -50,7 +50,7 @@ class Validate():
                 else:
                     embeded_message = Error.display_error(self.client, 11, parameter = param_name,
                                                           type_article = "an", correct_type = "integer", value = "0")
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 return None
 
         return param
@@ -65,7 +65,7 @@ class Validate():
             if (verbose):
                 embeded_message = Error.display_error(self.client, 6, parameter = f"{param_name}",
                                                       type_article = "a", correct_type = "decimal")
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
             return None
         else:
             return param
@@ -87,18 +87,14 @@ class Validate():
             if (verbose):
                 embeded_message = Error.display_error(self.client, 19, parameter = param_name, type_article = "an",
                                                       correct_type = "integer", scope = scope, left = str(left), right = str(right))
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
         return in_between
 
 
     # check_url(self, url) Checks if 'url' is valid
     def check_url(self, url: str) -> bool:
-        result = False
-        result = bool(validators.url(url[1:-1]))
-        if (not result):
-            result = bool(validators.url(url))
-
+        result = bool(validators.url(url))
         return result
 
 
@@ -125,7 +121,7 @@ class Validate():
                 error = True
                 embeded_message = Error.display_error(self.client, 6, parameter = f"{var_name}",
                                                       type_article = "a", correct_type = "link to a youtube channel")
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
         return [error, var]
 
@@ -171,7 +167,7 @@ class Validate():
                 if (not error):
                     embeded_message = Error.display_error(self.client, 8, type_article = "an",
                                                           correct_type = "integer", value = f"{max_page}", parameter = "page")
-                    await ctx.send(embed = embeded_message)
+                    await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
                 error = True
 
@@ -183,11 +179,11 @@ class Validate():
     async def validate_bool(self, ctx: commands.Context, error: bool, var: Any, var_name: str,
                             allow_optional: bool = False) -> List[Union[bool, Optional[bool]]]:
         var = StringTools.convert_bool(var)
-        if (var is None or (not allow_optional and var is None)):
+        if (var is not None or (not allow_optional and var is None)):
             if (not error):
                 embeded_message = Error.display_error(self.client, 6, type_article= "a",
                                                       correct_type = "boolean", parameter = var_name)
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
             error = True
 
         return [error, var]
@@ -200,13 +196,14 @@ class Validate():
         var = StringTools.convert_none(var)
 
         if (var is not None):
+            var = StringTools.get_link(var)
             valid_image = self.check_url(var)
 
             if (not valid_image):
                 if (not error):
                     embeded_message = Error.display_error(self.client, 14, type_article= "an",
                                                           correct_type = "image", parameter = var_name)
-                    await ctx.send(embed = embeded_message)
+                    await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 error = True
 
         return [error, var]
