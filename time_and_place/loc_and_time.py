@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from datetime import datetime
-import tools.datetime as DateTools, Season
+import tools.datetime as DateTools
 import tools.weather as Weather
 from tools.embed import Embed, EmbededMessage
 import pics.image_links as Pics
@@ -12,7 +12,7 @@ import tools.members as Members
 from database.database import Database, SelectType
 from set_up.server_settings import ServerSettings
 from set_up.user_settings import UserSettings
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, Union
 
 
 MAX_FORECAST_PER_PAGE = 1
@@ -27,8 +27,8 @@ class LocationAndTime():
     # make_date(ctx, timezone, thumbnail, today, season, time_of_day) Formats
     #   the embed for displaying the date
     async def make_date(self, ctx: commands.Context, timezone: str, thumbnail: Optional[str] = None,
-                        today: Optional[datetime] = None, season: Optional[Season] = None,
-                        time_of_day: Optional[TimeOfDay] = None) -> EmbededMessage:
+                        today: Optional[datetime] = None, season: Optional[DateTools.Season] = None,
+                        time_of_day: Optional[DateTools.TimeOfDay] = None) -> EmbededMessage:
         # retrieves today's date if not found yet
         if (today is None):
             # get current datetime
