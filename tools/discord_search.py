@@ -506,7 +506,7 @@ class SearchTools(commands.Cog):
 
             if (search_member is None):
                 if (not error):
-                    embeded_message = Error.display_error(self.client, 17, member = "member", member_search_type = member_search_type, search_member = member)
+                    embeded_message = Error.display_error(self.client, 18, member = "member", member_search_type = member_search_type, search_member = member)
                     await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 error = True
 
