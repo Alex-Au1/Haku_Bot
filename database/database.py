@@ -3,7 +3,7 @@ from tools.string import StringTools
 from typing import Dict, Any, List, Optional, Union, Callable
 
 DATABASE = "my_database"
-USERNAME = "my_password"
+USERNAME = "my_username"
 PASSWORD = "my_password"
 HOST = "the_host_of_my_database"
 PORT = "some_port"
