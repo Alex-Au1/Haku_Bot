@@ -391,7 +391,7 @@ class Embed:
 
     # context_embed(ctx, description, title, colour, thumbnail, image, name) Embed template for the user context
     def context_embed(self, ctx: commands.Context, description: str, title: str, colour: Union[str, int],
-                      thumbnail: Optional[str], image: Optional[Union[str, Dict[pics.ImageCategory, int]]] = None,
+                      thumbnail: Optional[str] = None, image: Optional[Union[str, Dict[pics.ImageCategory, int]]] = None,
                       name: Optional[str] = None) -> EmbededMessage:
         if (name is None):
             name = members.convert_name(ctx.author.id, ctx.author)
