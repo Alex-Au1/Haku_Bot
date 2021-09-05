@@ -2,6 +2,7 @@ import discord
 import copy
 from tools.embed import Embed, EmbededMessage
 from tools.string import StringTools
+import tools.members as Members
 from typing import Optional
 
 
@@ -13,11 +14,11 @@ class Err_Embed():
 
 
 
-errors = {1: Err_Embed("Unable to Find Error", "Haku is unable to find the error by the code `{err_code}`"),
-          2: Err_Embed("Unable to Warning", "Haku is unable to find the warning by the code `{warn_code}`"),
-          3: Err_Embed("Unable to Find Selected Guild and Channel", "Haku is unable to find the guild by the {guild_search_type} `{search_guild}` and the channel by the {channel_search_type} `{search_channel}`"),
-          4: Err_Embed("Unable to Find Selected Guild", "Haku is unable to find the guild by the {guild_search_type} `{search_guild}`"),
-          5: Err_Embed("Unable to Find Selected Channel", "Haku is unable to find the channel by the {channel_search_type} `{search_channel}`"),
+errors = {1: Err_Embed("Unable to Find Error", "{bot_nickname} is unable to find the error by the code `{err_code}`"),
+          2: Err_Embed("Unable to Warning", "{bot_nickname} is unable to find the warning by the code `{warn_code}`"),
+          3: Err_Embed("Unable to Find Selected Guild and Channel", "{bot_nickname} is unable to find the guild by the {guild_search_type} `{search_guild}` and the channel by the {channel_search_type} `{search_channel}`"),
+          4: Err_Embed("Unable to Find Selected Guild", "{bot_nickname} is unable to find the guild by the {guild_search_type} `{search_guild}`"),
+          5: Err_Embed("Unable to Find Selected Channel", "{bot_nickname} is unable to find the channel by the {channel_search_type} `{search_channel}`"),
           6: Err_Embed("Please Enter {type_article} {correct_type} Parameter", "Please enter {type_article} **{correct_type}** for the parameter `{parameter}`"),
           7: Err_Embed("Please Enter {type_article} {correct_type} Greater or Equal to {value}", "Please enter {type_article} **{correct_type} greater or equal to {value}** for the parameter `{parameter}`"),
           8: Err_Embed("Please Enter {type_article} {correct_type} Lesser or Equal to {value}", "Please enter {type_article} **{correct_type} lesser or equal to {value}** for the parameter `{parameter}`"),
@@ -28,8 +29,8 @@ errors = {1: Err_Embed("Unable to Find Error", "Haku is unable to find the error
           13: Err_Embed("Please Enter a Valid Subcommand", "Please enter a valid subcommand for the command `{command}`"),
           14: Err_Embed("Please Enter a Valid Url for {type_article} {correct_type}", "Please enter a valid url for **{type_article} {correct_type}** in the parameter `{parameter}`"),
           15: Err_Embed("Please Enter a Valid {correct_type}", "Please enter a valid **{correct_type}** for the parameter `{parameter}`"),
-          18: Err_Embed("Unable to Find Selected {member}", "Haku is unable to find the {member} by the {member_search_type} `{search_member}`"),
-          19: Err_Embed("{action} Failed", "Haku is unable to {action}"),
+          18: Err_Embed("Unable to Find Selected {member}", "{bot_nickname} is unable to find the {member} by the {member_search_type} `{search_member}`"),
+          19: Err_Embed("{action} Failed", "{bot_nickname} is unable to {action}"),
           20: Err_Embed("Please Enter {type_article} {correct_type} {scope} in between {left} and {right}", "Please enter {type_article} **{correct_type} {scope} in between __{left}__ and __{right}__** for the parameter `{parameter}`")}
 
 warnings = {}
@@ -75,6 +76,7 @@ def display_error(client: discord.Client, code: int, type: str = "error", choice
             kwargs = {"{warn_code}": f"{code}"}
             code = 2
 
+    kwargs.update({"{bot_nickname}": Members.DEFAULT_BOT_NAME})
     title += f"{code}: {err_title}"
     title = StringTools.word_replace(title, kwargs, capitalize = True)
     description = StringTools.word_replace(err_description, kwargs)
