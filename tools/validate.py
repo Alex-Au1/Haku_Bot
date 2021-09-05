@@ -18,6 +18,7 @@ class DataTypes(enum.Enum):
 class Validate():
     def __init__(self, client: discord.Client):
         self.client = client
+        self.REMOVE_IMG = "remove"
 
     # check_integer(ctx, param) Checks if 'param' is an integer
     async def check_integer(self, ctx: commands.Context, param: Any, param_name: str,
@@ -179,7 +180,7 @@ class Validate():
     async def validate_bool(self, ctx: commands.Context, error: bool, var: Any, var_name: str,
                             allow_optional: bool = False) -> List[Union[bool, Optional[bool]]]:
         var = StringTools.convert_bool(var)
-        if (var is not None or (not allow_optional and var is None)):
+        if (not allow_optional and var is None):
             if (not error):
                 embeded_message = Error.display_error(self.client, 6, type_article= "a",
                                                       correct_type = "boolean", parameter = var_name)
@@ -189,7 +190,7 @@ class Validate():
         return [error, var]
 
 
-    # validate_bool(self, ctx, client, error, var, var_name) Determines if
+    # validate_image(self, ctx, client, error, var, var_name) Determines if
     #   'var' is an image url and displays an error if it is not
     async def validate_image(self, ctx: commands.Context, error: bool, var: Any,
                              var_name: str) -> List[Union[bool, Optional[str]]]:
@@ -205,5 +206,26 @@ class Validate():
                                                           correct_type = "image", parameter = var_name)
                     await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 error = True
+
+        return [error, var]
+
+
+    # validate_image(self, ctx, client, error, var, var_name) Determines if
+    #   'var' is an image url or the keyword REMOVE_IMG and displays an error if it is not
+    async def validate_editted_image(self, ctx: commands.Context, error: bool, var: str, var_name: str) -> List[Union[bool, Optional[str]]]:
+        new_error = False
+        try:
+            var = str(var)
+            lower_var = var.lower()
+        except:
+            new_error = True
+
+        if (new_error or (not error and lower_var != self.REMOVE_IMG)):
+            new_error, var = await self.validate_image(ctx, error, var, var_name)
+
+            if (not error and new_error):
+                error = new_error
+        elif (not error):
+            var = self.REMOVE_IMG
 
         return [error, var]
