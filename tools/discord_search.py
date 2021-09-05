@@ -363,6 +363,7 @@ class SearchTools(commands.Cog):
             result = (member.guild.id == kwargs["guild"].id)
 
         # fetch the user by their id
+
         elif (isinstance(member, discord.User)):
             user_guilds = member.mutual_guilds
             if (kwargs["guild"] in user_guilds):
@@ -406,11 +407,11 @@ class SearchTools(commands.Cog):
             if (not error):
                 if (not dm):
                     embeded_message = Error.display_error(self.client, 4, guild_search_type = guild_search_type, search_guild = server)
-                    await ctx.send(embed = embeded_message)
+                    await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 else:
                     dm_channel_server = f"Haku's DMs with {Members.convert_name(ctx.author.id, ctx.author)}"
                     embeded_message = Error.display_error(self.client, 9, channel = dm_channel_server, action = action, guild = dm_channel_server)
-                    await ctx.send(embed = embeded_message)
+                    await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
             error = True
 
         return [error, search_server]
@@ -432,7 +433,7 @@ class SearchTools(commands.Cog):
         if (sending_channel is None):
             if (not error):
                 embeded_message = Error.display_error(self.client, 5, channel_search_type = channel_search_type, search_channel = channel)
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
             error = True
 
         return [error, sending_channel]
@@ -463,22 +464,22 @@ class SearchTools(commands.Cog):
                     if (search_channel is not None and server is None and not allow_dm):
                         name = Members.convert_name(ctx.author.id, ctx.author)
                         embeded_message = Error.display_error(self.client, 9, channel = f"Haku's Dms with {name}", action = action, guild = f"Haku's Dms with {name}")
-                        await ctx.send(embed = embeded_message)
+                        await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                     else:
                         embeded_message = Error.display_error(self.client, 4, guild_search_type = guild_search_type, search_guild = server)
-                        await ctx.send(embed = embeded_message)
+                        await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 error = True
 
             if (search_channel is None):
                 if (not error):
                     embeded_message = Error.display_error(self.client, 5, search_channel = channel, channel_search_type = channel_search_type)
-                    await ctx.send(embed = embeded_message)
+                    await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 error = True
 
             if (not allow_dm and isinstance(search_channel, discord.DMChannel)):
                 if (not error):
                     embeded_message = Error.display_error(self.client, 5, search_channel = channel, channel_search_type = channel_search_type)
-                    await ctx.send(embed = embeded_message)
+                    await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 error = True
 
         if (allow_default and server is None and channel is None):
@@ -505,8 +506,8 @@ class SearchTools(commands.Cog):
 
             if (search_member is None):
                 if (not error):
-                    embeded_message = Error.display_error(self.client, 17, member = "member", member_search_type = member_search_type, search_member = member)
-                    await ctx.send(embed = embeded_message)
+                    embeded_message = Error.display_error(self.client, 18, member = "member", member_search_type = member_search_type, search_member = member)
+                    await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 error = True
 
         return [error, search_member]
@@ -539,7 +540,7 @@ class SearchTools(commands.Cog):
         if (search_role is None):
             if (not error and server is not None):
                 embeded_message = Error.display_error(self.client, 10, element = role, group = f"the roles of {server.name}", parameter = param_name)
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
             error = True
 
         return [error, search_role]

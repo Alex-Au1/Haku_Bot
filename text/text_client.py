@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from tools.embed import Embed
 from text.bot_texting import Texting
 from tools.string import StringTools
 
@@ -51,10 +52,10 @@ class Text(commands.Cog):
     # effects: sends an embed and deletes message
     @commands.command(name="embed",
                           description="Converts user's messages to embeded messages \n \n <description>: message to be converted \n <title>: title of the message\n <colour>: colour of the side bar of the embed \n <display_thumbnail> (yes or no): option of displaying embed picture \n <thumbnail> (url, \"self\", \"bot\"): pictures of the embed" )
-    async def embed(self, ctx: commands.Context, description: str, title: str, colour: str,
-                    display_thumbnail: str, thumbnail: str, image: str, search_channel: str = StringTools.NONE,
+    async def embed(self, ctx: commands.Context, description: str, title: str = StringTools.NONE, colour: str = Embed.EMBED_DEFAULT_COLOUR.name,
+                    thumbnail: str = StringTools.NONE, image: str = StringTools.NONE, search_channel: str = StringTools.NONE,
                     search_guild: str = StringTools.NONE):
-        await self.texting.user_embed(ctx, description, title, colour, display_thumbnail, thumbnail, image, search_channel, search_guild)
+        await self.texting.user_embed(ctx, description, title, colour, thumbnail, image, search_channel, search_guild)
 
 
     # hello(ctx) greets the user with hello

@@ -18,6 +18,7 @@ class DataTypes(enum.Enum):
 class Validate():
     def __init__(self, client: discord.Client):
         self.client = client
+        self.REMOVE_IMG = "remove"
 
     # check_integer(ctx, param) Checks if 'param' is an integer
     async def check_integer(self, ctx: commands.Context, param: Any, param_name: str,
@@ -28,7 +29,7 @@ class Validate():
             if (verbose):
                 embeded_message = Error.display_error(self.client, 6, parameter = f"{param_name}",
                                                       type_article = "an", correct_type = "integer")
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
             return None
         else:
             return param
@@ -50,7 +51,7 @@ class Validate():
                 else:
                     embeded_message = Error.display_error(self.client, 11, parameter = param_name,
                                                           type_article = "an", correct_type = "integer", value = "0")
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 return None
 
         return param
@@ -65,7 +66,7 @@ class Validate():
             if (verbose):
                 embeded_message = Error.display_error(self.client, 6, parameter = f"{param_name}",
                                                       type_article = "a", correct_type = "decimal")
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
             return None
         else:
             return param
@@ -87,18 +88,14 @@ class Validate():
             if (verbose):
                 embeded_message = Error.display_error(self.client, 19, parameter = param_name, type_article = "an",
                                                       correct_type = "integer", scope = scope, left = str(left), right = str(right))
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
         return in_between
 
 
     # check_url(self, url) Checks if 'url' is valid
     def check_url(self, url: str) -> bool:
-        result = False
-        result = bool(validators.url(url[1:-1]))
-        if (not result):
-            result = bool(validators.url(url))
-
+        result = bool(validators.url(url))
         return result
 
 
@@ -125,7 +122,7 @@ class Validate():
                 error = True
                 embeded_message = Error.display_error(self.client, 6, parameter = f"{var_name}",
                                                       type_article = "a", correct_type = "link to a youtube channel")
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
         return [error, var]
 
@@ -171,7 +168,7 @@ class Validate():
                 if (not error):
                     embeded_message = Error.display_error(self.client, 8, type_article = "an",
                                                           correct_type = "integer", value = f"{max_page}", parameter = "page")
-                    await ctx.send(embed = embeded_message)
+                    await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
                 error = True
 
@@ -183,30 +180,52 @@ class Validate():
     async def validate_bool(self, ctx: commands.Context, error: bool, var: Any, var_name: str,
                             allow_optional: bool = False) -> List[Union[bool, Optional[bool]]]:
         var = StringTools.convert_bool(var)
-        if (var is None or (not allow_optional and var is None)):
+        if (not allow_optional and var is None):
             if (not error):
                 embeded_message = Error.display_error(self.client, 6, type_article= "a",
                                                       correct_type = "boolean", parameter = var_name)
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
             error = True
 
         return [error, var]
 
 
-    # validate_bool(self, ctx, client, error, var, var_name) Determines if
+    # validate_image(self, ctx, client, error, var, var_name) Determines if
     #   'var' is an image url and displays an error if it is not
     async def validate_image(self, ctx: commands.Context, error: bool, var: Any,
                              var_name: str) -> List[Union[bool, Optional[str]]]:
         var = StringTools.convert_none(var)
 
         if (var is not None):
+            var = StringTools.get_link(var)
             valid_image = self.check_url(var)
 
             if (not valid_image):
                 if (not error):
                     embeded_message = Error.display_error(self.client, 14, type_article= "an",
                                                           correct_type = "image", parameter = var_name)
-                    await ctx.send(embed = embeded_message)
+                    await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 error = True
+
+        return [error, var]
+
+
+    # validate_image(self, ctx, client, error, var, var_name) Determines if
+    #   'var' is an image url or the keyword REMOVE_IMG and displays an error if it is not
+    async def validate_editted_image(self, ctx: commands.Context, error: bool, var: str, var_name: str) -> List[Union[bool, Optional[str]]]:
+        new_error = False
+        try:
+            var = str(var)
+            lower_var = var.lower()
+        except:
+            new_error = True
+
+        if (new_error or (not error and lower_var != self.REMOVE_IMG)):
+            new_error, var = await self.validate_image(ctx, error, var, var_name)
+
+            if (not error and new_error):
+                error = new_error
+        elif (not error):
+            var = self.REMOVE_IMG
 
         return [error, var]

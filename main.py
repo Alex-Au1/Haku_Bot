@@ -20,7 +20,7 @@ async def unload(ctx, file, extension):
 
 
 #list of directories contatining files
-dir = ["onload", "text", "server_info", "reaction", "search", "rpg", "media_edit", "count", "betting", "backup", "set_up"];
+dir = ["onload", "text", "server_info", "reaction", "search", "media_edit", "count", "betting", "backup", "set_up"];
 
 #load the cog files
 for d in dir:
