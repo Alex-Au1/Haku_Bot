@@ -24,7 +24,7 @@ class Settings(commands.Cog):
     async def settings(self, ctx: commands.Context):
         if (ctx.invoked_subcommand is None):
             embeded_message = Error.display_error(self.client, 13, command = "settings")
-            await ctx.send(embed = embeded_message)
+            await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
 
     # settings(ctx) Set the settings for a certain group
@@ -32,7 +32,7 @@ class Settings(commands.Cog):
     async def settings(self, ctx: commands.Context):
         if (ctx.invoked_subcommand is None):
             embeded_message = Error.display_error(self.client, 13, command = "settings")
-            await ctx.send(embed = embeded_message)
+            await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
 
     # server(ctx) Set the settings for a server
@@ -40,13 +40,13 @@ class Settings(commands.Cog):
     async def server(self, ctx: commands.Context):
         if (ctx.invoked_subcommand is None):
             embeded_message = Error.display_error(self.client, 13, command = "settings server")
-            await ctx.send(embed = embeded_message)
+            await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
         elif (ctx.guild is None):
             name = Members.convert_name(ctx.author.id, ctx.author)
             dm_channel = ChannelTools.DMCHANNEL.replace("Name", name)
             embeded_message = Error.display_error(self.client, 9, channel = dm_channel, action = "interact with server settings", guild = dm_channel)
-            await ctx.send(embed = embeded_message)
+            await ctx.send(embed = embeded_message, file = embeded_message.file)
 
 
     # track(self, ctx, track_type) Toggles the settings for tracking a 'track_type'
@@ -121,7 +121,7 @@ class Settings(commands.Cog):
     async def user(self, ctx: commands.Context):
         if (ctx.invoked_subcommand is None):
             embeded_message = Error.display_error(self.client, 13, command = "settings user")
-            await ctx.send(embed = embeded_message)
+            await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
 
     # view(ctx, category) Views the server's settings
@@ -161,3 +161,9 @@ class Settings(commands.Cog):
     @tasks.loop(seconds=43200)
     async def update_time(self):
         await self.server_settings.update_time()
+
+
+
+#set up of the cog to the bot
+def setup(client):
+    client.add_cog(Settings(client))
