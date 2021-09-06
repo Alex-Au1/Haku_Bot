@@ -195,7 +195,7 @@ async def validate_private_channel(ctx: commands.Context, client: discord.Client
     if (not error and ctx.guild is None):
         dm_channel = get_dm_channel(name)
         embeded_message = Error.display_error(client, 9, channel = dm_channel, action = action, guild = dm_channel)
-        await ctx.send(embed = embeded_message)
+        await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
         error = True
 
     return error
