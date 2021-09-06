@@ -8,12 +8,14 @@ import tools.channels as ChannelTools
 from youtubesearchpython import *
 import tools.datetime as DateTime
 from tools.embed import Embed, EmbededMessage
-from database.database import Database
+from database.database import Database, SelectType
 from tools.discord_search import SearchTools
 import pics.image_links as Pics
 from text.bot_texting import Texting
 from tools.validate import Validate
 from tools.pagination import Pagination, ButtonedMsg
+from set_up.server_settings import ServerSettings
+from set_up.user_settings import UserSettings
 from typing import Optional, Union, Dict, Any
 
 YOUTUBE_BASE_VIDEO_URL = 'https://www.youtube.com/watch?v='
@@ -31,7 +33,8 @@ class YtAccount(enum.Enum):
     Server = "server"
     User = "user"
 
-CHANNEL_LOCATION_INDICES = {YtAccount.Server: "subd_yt_channels"}
+CHANNEL_LOCATION_INDICES = {YtAccount.Server: "subd_yt_channels", YtAccount.User: "subd_yt_channels"}
+CHANNEL_NOTIFY_INDICES = {YtAccount.Server: "notify_yt", YtAccount.User: "notify_yt"}
 
 
 # YtChannelInfo: Information on the latest video of a channel
@@ -210,13 +213,13 @@ class YoutubeUtils(commands.Cog):
 
     # question(ctx, question, question_title, set_value, values_to_check) Asks the user to
     #   enable or disable a certain tracking attribute
-    async def question(self, ctx: commands.Context, question: str, question_title: str, set_value: bool) -> str:
+    async def question(self, ctx: commands.Context, question: str, question_title: str, set_value: bool, replacements = {"enable": "disable", "Enable": "Disable"}) -> str:
         default_pic = {Pics.ImageCategory.Default: 0}
         values_to_check = StringTools.TRUE + StringTools.FALSE
 
         if (not set_value):
-            question = question.replace("enable", "disable")
-            question_title = question_title.replace("Enable", "Disable")
+            question = StringTools.word_replace(question, replacements)
+            question_title = StringTools.word_replace(question_title, replacements)
 
         question_embed = self.embed.bot_embed(ctx, question, question_title, "yellow", 2, default_pic)
         question_embed = self.embed.add_section(question_embed, "Yes (y)", "\U0001F44D", True)
@@ -226,12 +229,12 @@ class YoutubeUtils(commands.Cog):
 
     # answer(ctx, answer_desc, answer_title, set_value, values_to_check) Displays the message
     #   to confirm that the setting value to a tracking attribute has been changed
-    async def answer(self, ctx: commands.Context, answer_desc: str, answer_title: str, set_value: bool):
+    async def answer(self, ctx: commands.Context, answer_desc: str, answer_title: str, set_value: bool, replacements = {"enable": "disable", "Enable": "Disable"}):
         default_pic = {Pics.ImageCategory.Default: 0}
 
         if (not set_value):
-            answer_desc = answer_desc.replace("enabled", "disabled")
-            answer_title = answer_title.replace("Enabled", "Disabled")
+            answer_desc = StringTools.word_replace(answer_desc, replacements)
+            answer_title = StringTools.word_replace(answer_title, replacements)
         answer_embed = self.embed.bot_embed(ctx, answer_desc, answer_title, "light-green", 2, default_pic)
         await ctx.send(embed = answer_embed.embed, file = answer_embed.file)
 
@@ -239,10 +242,14 @@ class YoutubeUtils(commands.Cog):
     # add_yt_channel(ctx, channel, sending_channel) Enable video notifications of a youtube channel to the server
     # effects: sends embeds
     #          deletes and edits messages
-    async def add_yt_channel(self, ctx: commands.Context, yt_channel: str, sending_channel: str):
+    async def add_yt_channel(self, ctx: commands.Context, yt_channel: str, sending_channel: str, account_type: YtAccount):
         error = False
         error = await ChannelTools.validate_activity_channel(ctx, error)
-        error, server, sending_channel = await self.search_tools.validate_sev_ch(ctx, error, sending_channel, str(ctx.guild.id), action = "sending message", allow_dm = False)
+
+        if (account_type == YtAccount.Server):
+            error, server, sending_channel = await self.search_tools.validate_sev_ch(ctx, error, sending_channel, str(ctx.guild.id), action = "sending message", allow_dm = False)
+        elif (account_type == YtAccount.User):
+            sending_channel = self.client.get_channel(int(sending_channel))
 
         if (ctx.guild is not None and not error):
             channel_info = await self.get_channel_info(yt_channel)
@@ -250,7 +257,17 @@ class YoutubeUtils(commands.Cog):
             if (channel_info is not None):
                 # determine if the server is already checking on the channel
                 subscribed = False
-                subd_yt_channels = Database.list_select(CHANNEL_LOCATION_INDICES[YtAccount.Server], "Server_Accounts", conditions = {"id": f"{ctx.guild.id}"})[0]
+
+                if (account_type == YtAccount.Server):
+                    table = "Server_Accounts"
+                    conditions = {"id": f"{ctx.guild.id}"}
+                    default_func = ServerSettings.default_setting
+                elif (account_type == YtAccount.User):
+                    table = "User_Accounts"
+                    conditions = {"id": f"{ctx.author.id}"}
+                    default_func = UserSettings.default_setting
+
+                subd_yt_channels = Database.default_select(default_func, SelectType.List, [CHANNEL_LOCATION_INDICES[account_type], table], {"conditions": conditions}, [ctx], {})[0]
                 subd_yt_channels = StringTools.convert_dict(subd_yt_channels)
 
                 if (subd_yt_channels is not None and channel_info.id in subd_yt_channels):
@@ -261,7 +278,11 @@ class YoutubeUtils(commands.Cog):
 
                 # ask the user if they want to enable or disable getting notifications
                 if (not subscribed):
-                    question_message = f"Do you want to receive notifications on the latest video for the youtube channel, `{channel_info.name}` in the text channel, `{sending_channel.name}`?"
+                    question_message = f"Do you want to receive notifications on the latest video for the youtube channel, `{channel_info.name}`"
+
+                    if (account_type == YtAccount.Server):
+                        question_message += f"in the text channel, `{sending_channel.name}`"
+                    question_message += "?"
                     question_title = "Get Latest Videos?"
 
                     answer = await self.question(ctx, question_message, question_title, True)
@@ -281,14 +302,25 @@ class YoutubeUtils(commands.Cog):
                         subd_yt_channels[channel_info.id] = sending_channel.id
                         db_channels = json.dumps(subd_yt_channels)[1:-1]
                         db_channels = db_channels.replace("\"", "")
-                        answer_message = f"Notifications to latest videos of `{channel_info.name}` enabled to the text channel, `{sending_channel.name}`"
-                        answer_title = "Receive Notifications on channel"
 
-                        Database.update({CHANNEL_LOCATION_INDICES[YtAccount.Server]: f"'{db_channels}'"}, "Server_Accounts", conditions = {"id": f"{ctx.guild.id}"})
+                        answer_message = f"Notifications to latest videos of `{channel_info.name}` enabled"
+                        if (account_type == YtAccount.Server):
+                            answer_message += f"to the text channel, `{sending_channel.name}`"
+
+                        answer_title = "Receive Notifications on channel"
+                        Database.update({CHANNEL_LOCATION_INDICES[YtAccount.Server]: f"'{db_channels}'"}, table, conditions = conditions)
                         await self.answer(ctx, answer_message, answer_title, True)
 
                 else:
-                    embeded_message = self.embed.bot_embed(ctx, f"The server has already selected to receive notifications from the youtube channel, `{channel_info.name}`", "Already Receiving Notifications", "yellow", -1, image = {Pics.ImageCategory.Default: 0})
+                    found_message = ""
+
+                    if (account_type == YtAccount.Server):
+                        found_message += "The Server has"
+                    elif (account_type == YtAccount.User):
+                        found_message += "You have"
+                    found_message += f"already selected to receive notifications from the youtube channel, `{channel_info.name}`"
+
+                    embeded_message = self.embed.bot_embed(ctx, found_message, "Already Receiving Notifications", "yellow", -1, image = {Pics.ImageCategory.Default: 0})
                     await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
             else:
@@ -299,7 +331,7 @@ class YoutubeUtils(commands.Cog):
     # change_yt_channel(ctx, channel_index, sending_channel) Changes the location where the notifications for each video is sent
     # effects: sends embeds
     #          deletes and edits messages
-    async def change_yt_channel(self, ctx: commands.Context, channel_index: str, sending_channel: str):
+    async def change_yt_channel(self, ctx: commands.Context, channel_index: str, sending_channel: str, account_type: YtAccount):
         error = False
         error = await ChannelTools.validate_activity_channel(ctx, error)
         error, server, sending_channel = await self.search_tools.validate_sev_ch(ctx, error, sending_channel, str(ctx.guild.id), action = "sending message", allow_dm = False, allow_default = False)
@@ -337,7 +369,7 @@ class YoutubeUtils(commands.Cog):
     # remove_yt_channel(ctx, channel) Disable video notifications of a youtube channel to the server
     # effects: sends embeds
     #          deletes and edits messages
-    async def remove_yt_channel(self, ctx: commands.Context, channel_index: str):
+    async def remove_yt_channel(self, ctx: commands.Context, channel_index: str, account_type: YtAccount):
         error = False
         error = await ChannelTools.validate_activity_channel(ctx, error)
         error, channel_index = await self.validate.validate_natural(ctx, error, channel_index, "channel_index")
@@ -345,7 +377,16 @@ class YoutubeUtils(commands.Cog):
         if (ctx.guild is not None and not error):
             # determine if the server is already checking on the channel
             subscribed = False
-            subd_yt_channels = Database.list_select(CHANNEL_LOCATION_INDICES[YtAccount.Server], "Server_Accounts", conditions = {"id": f"{ctx.guild.id}"})[0]
+            if (account_type == YtAccount.Server):
+                table = "Server_Accounts"
+                conditions = {"id": f"{ctx.guild.id}"}
+                default_func = ServerSettings.default_setting
+            elif (account_type == YtAccount.User):
+                table = "User_Accounts"
+                conditions = {"id": f"{ctx.author.id}"}
+                default_func = UserSettings.default_setting
+
+            subd_yt_channels = Database.default_select(default_func, SelectType.List, [CHANNEL_LOCATION_INDICES[YtAccount.Server], table], {"conditions": conditions}, [ctx], {})[0]
             subd_yt_channels = StringTools.convert_dict(subd_yt_channels)
             subd_yt_channels_ids = list(subd_yt_channels.keys())
 
@@ -368,7 +409,7 @@ class YoutubeUtils(commands.Cog):
                         db_channels = db_channels.replace("\"", "")
                     else:
                         db_channels = StringTools.NONE
-                    Database.update({CHANNEL_LOCATION_INDICES[YtAccount.Server]: f"'{db_channels}'"}, "Server_Accounts", conditions = {"id": f"{ctx.guild.id}"})
+                    Database.update({CHANNEL_LOCATION_INDICES[account_type]: f"'{db_channels}'"}, table, conditions = conditions)
 
                     answer_message = f"Notifications to latest videos of `{target_channel_name}` disabled"
                     answer_title = "Stopped Receiving Notifications on channel"
@@ -382,18 +423,32 @@ class YoutubeUtils(commands.Cog):
         ctx = kwargs["ctx"]
         yt_channel_name_dict = kwargs["yt_channel_name_dict"]
         yt_channel_name_dict_len = kwargs["yt_channel_name_dict_len"]
+        receive_notifications = kwargs["receive_notifications"]
         thumbnail = kwargs["thumbnail"]
         colour = kwargs["colour"]
         account_type = kwargs["account_type"]
 
-        message = "Here are the channels the server, `[name]`, will receive the latest videos from"
+        message = "Here are the channels "
         title = f"Subscribed Youtube Channels"
 
         if (account_type == YtAccount.Server):
-            message = message.replace("[name]", ctx.guild.name)
+            message += f"the server, `{ctx.guild.name}`,"
+        elif (account_type == YtAccount.User):
+            message += f"that you"
+
+        message += " will receive the latest videos from"
 
         embeded_message = self.embed.context_embed(ctx, message, title, colour, thumbnail = thumbnail)
 
+        # notifications
+        formatted_notifications = ""
+        if (receive_notifications):
+            formatted_notifications += "`enabled \U00002714`"
+        else:
+            formatted_notifications += "`disabled \U0000274C`"
+        embeded_message = self.embed.add_section(embeded_message, "Notifications \U0001F514", formatted_notifications)
+
+        # subscribed youtube channels
         formatted_yt_channels = ""
         indices = Pagination.get_indices(current_page, self.CHANNELS_PER_PAGE, yt_channel_name_dict_len)
         start_index = indices["start_index"]
@@ -402,12 +457,16 @@ class YoutubeUtils(commands.Cog):
         yt_channel_key_lst = list(yt_channel_name_dict.keys())
         for i in range(start_index, end_index):
             key = yt_channel_key_lst[i]
-            formatted_yt_channels += f"#{i + 1}. `{key}` :   {yt_channel_name_dict[key]}\n"
+
+            if (account_type == YtAccount.Server):
+                formatted_yt_channels += f"#{i + 1}. `{key}` :   {yt_channel_name_dict[key]}\n"
+            elif (account_type == YtAccount.User):
+                formatted_yt_channels += f"#{i + 1}. `{key}`\n"
 
         if (formatted_yt_channels == ""):
             formatted_yt_channels = "```\nNo Subscribed Channels\n```"
 
-        embeded_message = self.embed.add_section(embeded_message, "Subscribed Channels \U0001F514", formatted_yt_channels)
+        embeded_message = self.embed.add_section(embeded_message, "Subscribed Channels \U0001F39E", formatted_yt_channels)
         return embeded_message
 
 
@@ -417,12 +476,22 @@ class YoutubeUtils(commands.Cog):
         error = False
         error = await ChannelTools.validate_activity_channel(ctx, error)
 
-        if (account_type == YtAccount.Server and ctx.guild is not None and not error):
-            thumbnail = str(ctx.guild.icon_url)
+        if (not error and ((account_type == YtAccount.Server and ctx.guild is not None) or account_type == YtAccount.User)):
             colour = "light-purple"
-            columns_needed = [CHANNEL_LOCATION_INDICES[YtAccount.Server]]
-            yt_channel_results = Database.formatted_select(columns_needed, columns_needed, "Server_Accounts", conditions = {"id": f"{ctx.guild.id}"})[0]
-            yt_channel_dict = StringTools.convert_dict(yt_channel_results[CHANNEL_LOCATION_INDICES[YtAccount.Server]])
+            if (account_type == YtAccount.Server):
+                thumbnail = str(ctx.guild.icon_url)
+                table = "Server_Accounts"
+                conditions = {"id": f"{ctx.guild.id}"}
+                default_func = ServerSettings.default_setting
+            else:
+                thumbnail = str(ctx.author.avatar_url)
+                table = "User_Accounts"
+                conditions = {"id": f"{ctx.author.id}"}
+                default_func = UserSettings.default_setting
+
+            columns_needed = [CHANNEL_LOCATION_INDICES[account_type], CHANNEL_NOTIFY_INDICES[account_type]]
+            yt_channel_results = Database.default_select(default_func, SelectType.Formatted, [columns_needed, columns_needed, table], {"conditions": conditions}, [ctx], {})[0]
+            yt_channel_dict = StringTools.convert_dict(yt_channel_results[CHANNEL_LOCATION_INDICES[account_type]])
 
             columns_needed = ["id", "name"]
             channel_map = Database.hash_select(0, columns_needed, columns_needed, "Youtube_Channels")
@@ -443,11 +512,49 @@ class YoutubeUtils(commands.Cog):
             max_page = Pagination.get_total_pages(self.CHANNELS_PER_PAGE, yt_channel_name_dict_len)
 
             generate_yt_ch_view_pg_kwargs = {"ctx": ctx, "yt_channel_name_dict": yt_channel_name_dict, "yt_channel_name_dict_len": yt_channel_name_dict_len,
-                                             "thumbnail": thumbnail, "colour": colour, "account_type": account_type}
+                                             "thumbnail": thumbnail, "colour": colour, "account_type": account_type, "receive_notifications": yt_channel_results[CHANNEL_NOTIFY_INDICES[account_type]]}
 
             embeded_message = await self.generate_yt_ch_view_pg(page, max_page, generate_yt_ch_view_pg_kwargs)
             paginated_components = Pagination.make_page_buttons(page, max_page)
             await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, self.generate_yt_ch_view_pg, generate_yt_ch_view_pg_kwargs)
+
+
+    # enable_notifications(ctx, account_type) Enables or disables receiving youtube notifications
+    async def enable_notifications(self, ctx: commands.Context, account_type: YtAccount):
+        if ((account_type == YtAccount.Server and ctx.guild is not None) or account_type == YtAccount.User):
+            colour = "light-purple"
+            question_message = "Do you want to receive notifications on the newest videos from "
+            question_title = "Receive Notifications?"
+
+            if (account_type == YtAccount.Server):
+                thumbnail = str(ctx.guild.icon_url)
+                table = "Server_Accounts"
+                conditions = {"id": f"{ctx.guild.id}"}
+                default_func = ServerSettings.default_setting
+                question_message += "the server's"
+            else:
+                thumbnail = str(ctx.author.avatar_url)
+                table = "User_Accounts"
+                conditions = {"id": f"{ctx.author.id}"}
+                default_func = UserSettings.default_setting
+                question_message += "your"
+
+            question_message += " subscribed channels"
+
+            notifications = Database.default_select(default_func, SelectType.List, [CHANNEL_NOTIFY_INDICES[account_type], table], {"conditions": conditions}, [ctx], {})[0]
+            new_notification = not bool(notifications)
+            response = await self.question(ctx, question_message, question_title, new_notification, replacements = {"receive": "stop receiving", "Receive": "Stop Receiving"})
+
+            if (response in StringTools.TRUE):
+                Database.update({CHANNEL_NOTIFY_INDICES[account_type]: f"{int(new_notification)}"}, table, conditions = conditions)
+                answer_message = f"Notifications to latest videos enabled"
+
+                if (account_type == YtAccount.Server):
+                    answer_message += " for the server"
+                elif (account_type == YtAccount.User):
+                    answer_message += " for you"
+                answer_title = "Receiving Notifications on Channel"
+                await self.answer(ctx, answer_message, answer_title, new_notification, {"enabled": "disabled", "Receiving": "Stopped Receiving"})
 
 
     # channel_updates(self) Get the latest video posted by a channel
@@ -460,23 +567,32 @@ class YoutubeUtils(commands.Cog):
             latest_premiere = search_result["premiere"]
 
             if (latest_video_id != LATEST_VIDEOS[c].latest_video_id or (latest_video_id == LATEST_VIDEOS[c].latest_video_id and latest_premiere != LATEST_VIDEOS[c].premiere)):
+                print(f"YAYYE AND {latest_video_id} AND {LATEST_VIDEOS[c].latest_video_id}")
                 latest_video = LATEST_VIDEOS[c]
+                print(f"HERE IS PUBLICSHING DATE: {search_result['publish_date']}")
                 latest_publish_date = DateTime.get_yt_format_date(search_result["publish_date"])
                 previous_publish_date = DateTime.get_duration(latest_video.publish_date)
-                
+
+                print(f"{latest_publish_date} AND {previous_publish_date} AND {latest_publish_date > previous_publish_date}")
                 if (latest_publish_date > previous_publish_date or (latest_premiere != LATEST_VIDEOS[c].premiere)):
                     if (latest_premiere != LATEST_VIDEOS[c].premiere and not latest_premiere):
+                        print(f"The premiered video from {latest_video.name} has been uploaded")
                         upload_message = f"The premiered video from `{latest_video.name}` is ready to watch!"
                     elif (latest_premiere):
+                        print(f"{latest_video.name} premiered a new video")
                         upload_message = f"`{latest_video.name}` premiered a new video!"
                     else:
+                        print(f"{latest_video.name} posted a new video")
                         upload_message = f"`{latest_video.name}` uploaded a new video!"
 
                     columns_needed = ["id", CHANNEL_LOCATION_INDICES[YtAccount.Server]]
-                    server_subd_lst = Database.hash_select(0, columns_needed, columns_needed, "Server_Accounts")
+                    notifications_enabled = 1
+                    server_subd_lst = Database.hash_select(0, columns_needed, columns_needed, "Server_Accounts", conditions = {str(CHANNEL_NOTIFY_INDICES[YtAccount.Server]): f"{notifications_enabled}"})
+                    user_subd_lst = Database.hash_select(0, columns_needed, columns_needed, "User_Accounts", conditions = {str(CHANNEL_NOTIFY_INDICES[YtAccount.User]): f"{notifications_enabled}"})
 
                     # update the video
                     await self.update_latest_video(c, latest_video_id, latest_publish_date, latest_premiere)
+                    new_video_message = f"> \n> {upload_message}\n> \n> {YOUTUBE_BASE_VIDEO_URL + latest_video_id}"
 
                     # send the notification
                     for s in server_subd_lst:
@@ -500,4 +616,14 @@ class YoutubeUtils(commands.Cog):
 
                                     Database.update({CHANNEL_LOCATION_INDICES[YtAccount.Server]: f"'{updated_yt_channels}'"}, "Server_Accounts", conditions = {"id": f"{server.id}"})
 
-                                await sending_channel.send(f"> \n> {upload_message}\n> \n> {YOUTUBE_BASE_VIDEO_URL + latest_video_id}")
+                                await sending_channel.send(new_video_message)
+
+                    for u in user_subd_lst:
+                        current_user = user_subd_lst[u]
+                        if (current_user[CHANNEL_LOCATION_INDICES[YtAccount.User]] != StringTools.NONE and current_user[CHANNEL_LOCATION_INDICES[YtAccount.User]].find(latest_video.id) != -1):
+                            user = self.client.get_user(u)
+                            user_subd_channels = StringTools.convert_dict(current_server[CHANNEL_LOCATION_INDICES[YtAccount.User]])
+
+                            if (user is not None):
+                                await user.send(new_video_message)
+
