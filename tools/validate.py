@@ -19,6 +19,8 @@ class Validate():
     def __init__(self, client: discord.Client):
         self.client = client
         self.REMOVE_IMG = "remove"
+        self.EMBED_IMG_SELF = "self"
+        self.EMBED_IMG_BOT = "bot"
 
     # check_integer(ctx, param) Checks if 'param' is an integer
     async def check_integer(self, ctx: commands.Context, param: Any, param_name: str,
@@ -206,6 +208,28 @@ class Validate():
                                                           correct_type = "image", parameter = var_name)
                     await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
                 error = True
+
+        return [error, var]
+
+    # validate_image(self, ctx, client, error, var, var_name) Determines if
+    #   'var' is an image url or the keywords for images in the embed function and displays an error if it is not
+    async def validate_embed_image(self, ctx: commands.Context, error: bool, var: str, var_name: str) -> List[Union[bool, Optional[str]]]:
+        new_error = False
+        try:
+            var = str(var)
+            lower_var = var.lower()
+        except:
+            new_error = True
+
+        if (new_error or (not error and lower_var != self.EMBED_IMG_SELF and lower_var != self.EMBED_IMG_BOT)):
+            new_error, var = await self.validate_image(ctx, error, var, var_name)
+
+            if (not error and new_error):
+                error = new_error
+        elif (not error and lower_var == self.EMBED_IMG_SELF):
+            var = self.EMBED_IMG_SELF
+        elif (not error):
+            var = self.EMBED_IMG_BOT
 
         return [error, var]
 
