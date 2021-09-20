@@ -6,6 +6,14 @@ import tools.search_yt as YtSearchTools
 from typing import Any, Optional, Union, List
 
 
+YOUTUBE_BASE_VIDEO_URL = 'https://www.youtube.com/watch?v='
+YOUTUBE_BASE_VIDEO_URL_2 = "https://youtu.be/"
+YOUTUBE_BASE_CHANNEL_URL = "https://www.youtube.com/channel/"
+YOUTUBE_PLAYLIST_LINK = "https://www.youtube.com/playlist?list="
+SPOTIFY_BASE_URL = "https://open.spotify.com/"
+SPOTIFY_AUDIO_TYPES = ["album"]
+
+
 class DataTypes(enum.Enum):
     Str = "str"
     Int = "int"
@@ -88,7 +96,7 @@ class Validate():
 
         if (not in_between):
             if (verbose):
-                embeded_message = Error.display_error(self.client, 19, parameter = param_name, type_article = "an",
+                embeded_message = Error.display_error(self.client, 20, parameter = param_name, type_article = "an",
                                                       correct_type = "integer", scope = scope, left = str(left), right = str(right))
                 await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
@@ -125,6 +133,21 @@ class Validate():
                 embeded_message = Error.display_error(self.client, 6, parameter = f"{var_name}",
                                                       type_article = "a", correct_type = "link to a youtube channel")
                 await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
+
+        return [error, var]
+
+
+    # validate_integer(self, ctx, client, error, var, var_name) Determines if
+    #   'var' is an integer number and displays an error if it is not
+    async def validate_integer(self, ctx: commands.Context, error: bool, var: Any,
+                               var_name: str, allow_optional: bool = False) -> List[Union[bool, Optional[int]]]:
+        var = StringTools.convert_none(var)
+        if (var is not None or (not allow_optional and var is None)):
+            if (not error):
+                var = await self.check_integer(ctx, var, var_name, verbose = True)
+
+                if (var is None):
+                    error = True
 
         return [error, var]
 
@@ -211,6 +234,7 @@ class Validate():
 
         return [error, var]
 
+
     # validate_image(self, ctx, client, error, var, var_name) Determines if
     #   'var' is an image url or the keywords for images in the embed function and displays an error if it is not
     async def validate_embed_image(self, ctx: commands.Context, error: bool, var: str, var_name: str) -> List[Union[bool, Optional[str]]]:
@@ -251,5 +275,83 @@ class Validate():
                 error = new_error
         elif (not error):
             var = self.REMOVE_IMG
+
+        return [error, var]
+
+
+    # valid_yt_link(link) determines when the link is a valid youtube video link
+    def valid_yt_link(self, link:str, check_link: bool = True) -> bool:
+        if (check_link):
+            link = StringTools.get_link(link)
+
+        valid_link = validators.url(link)
+        if (valid_link and (link.startswith(YOUTUBE_BASE_VIDEO_URL) or link.startswith(YOUTUBE_BASE_VIDEO_URL_2))):
+            return True
+        else:
+            return False
+
+
+    # valid_yt_channel_link(link, check_link) Determines if the link is a valid link to
+    #   a certain site
+    def valid_web_link(self, link: str, link_start: str, check_link: bool = True) -> bool:
+        if (check_link):
+            link = StringTools.get_link(link)
+
+        valid_link = validators.url(link)
+        if (valid_link and (link.startswith(link_start))):
+            return True
+        else:
+            return False
+
+
+    # valid_yt_channel_link(link, check_link) Determines if the link is a valid link to a youtube channel
+    def valid_yt_channel_link(self, link: str, check_link: bool = True) -> bool:
+        return self.valid_web_link(link, YOUTUBE_BASE_CHANNEL_URL, check_link)
+
+
+    # valid_yt_playlist_link(link, check_link) Determines if the link is a valid link to a youtube playlist
+    def valid_yt_playlist_link(self, link: str, check_link: bool = True) -> bool:
+        return self.valid_web_link(link, YOUTUBE_PLAYLIST_LINK, check_link)
+
+
+    # valid_yt_channel_link(link, check_link) Determines if the link is a valid link to a youtube channel
+    def valid_spotify_link(self, link: str, check_link: bool = True) -> bool:
+        valid_link = self.valid_web_link(link, YOUTUBE_BASE_CHANNEL_URL, check_link)
+
+
+
+    # valid_audio_link(link, check_link) Checks if 'link' is a valid audio link
+    def valid_audio_link(self, link: str, check_link: bool = True) -> bool:
+        if (check_link):
+            link = StringTools.get_link(link)
+        is_valid = self.valid_yt_link(link, check_link = False)
+
+        if (not is_valid):
+            is_valid = valid_yt_playlist_link(link, check_link = False)
+
+        if (not is_valid):
+            is_valid = valid_yt_spotify_link(link, check_link = False)
+        return is_valid
+
+
+    # validate_image(self, ctx, client, error, var, var_name) Determines if
+    #   'var' is an image url or the keywords for images in the embed function and displays an error if it is not
+    async def validate_audio(self, ctx: commands.Context, error: bool, var: Any,
+                             var_name: str, allow_optional = False) -> List[Union[bool, Optional[str]]]:
+        var = StringTools.convert_none(var)
+
+        if (not allow_optional and var is None):
+            var = StringTools.get_link(var)
+            valid_audio = self.check_url(var)
+            valid_yt = False
+
+            if (valid_audio):
+                valid_yt = self.valid_audio_link(var, check_link = False)
+
+            if (not valid_audio and not valid_yt):
+                if (not error):
+                    embeded_message = Error.display_error(self.client, 15, correct_type = "audio source", parameter = var_name)
+                    await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
+                error = True
 
         return [error, var]
