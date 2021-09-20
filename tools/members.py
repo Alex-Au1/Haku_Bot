@@ -6,7 +6,11 @@ from typing import Optional, List, Callable, Any, Union
 BOT_NICKNAMES = ["Haku Yowane", "Haku" ,"Haku Chan", "Haku Onee-chan", "Haku Ojou-sama", "Haku Hime-sama", "弱音ハク"]
 DEFAULT_BOT_NAME = BOT_NICKNAMES[1]
 
-NICKNAMES = {The_Bots_id: BOT_NICKNAMES[random.randrange(0, len(BOT_NICKNAMES))],
+# get_bot_nickname() Randomly selects a bot's nickname
+def get_bot_nickname():
+    return BOT_NICKNAMES[random.randrange(0, len(BOT_NICKNAMES))]
+
+NICKNAMES = {The_Bots_id: get_bot_nickname()
              User_Ids: Nickname_for_the_user,
              ...
              ...
