@@ -10,7 +10,7 @@ DEFAULT_BOT_NAME = BOT_NICKNAMES[1]
 def get_bot_nickname():
     return BOT_NICKNAMES[random.randrange(0, len(BOT_NICKNAMES))]
 
-NICKNAMES = {The_Bots_id: get_bot_nickname()
+NICKNAMES = {The_Bots_id: get_bot_nickname(),
              User_Ids: Nickname_for_the_user,
              ...
              ...
