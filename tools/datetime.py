@@ -296,7 +296,7 @@ async def validate_time_diff(ctx, client: discord.Client, error: bool, var: Any,
         if (time_diff is None):
             if (not error):
                 embeded_message = Error.display_error(client, 15, correct_type = "datetime", parameter = var_name)
-                await ctx.send(embed = embeded_message)
+                await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
             error = True
             result = var
         else:
@@ -492,16 +492,17 @@ def yt_format_to_dict(date: str) -> Optional[Dict[str, int]]:
 def get_yt_format_date(date: str) -> datetime:
     date_dict = yt_format_to_dict(date)
     if (date_dict is not None):
-        date_kwargs = {"year": 0, "month": 0, "day":0, "hour": 0, "minute": 0, "second": 0}
+        date_kwargs = {"year": 0, "month": 0, "week": 0, "day":0, "hour": 0, "minute": 0, "second": 0}
         date_keys = list(date_kwargs.keys())
 
         for d in date_dict:
             if (d in date_keys):
                 date_kwargs[d] = date_dict[d]
 
-        datediff = relativedelta(years = date_kwargs["year"], months = date_kwargs["month"], days = date_kwargs["day"], hours = date_kwargs["hour"], minutes = date_kwargs["minute"], seconds = date_kwargs["second"])
+        datediff = relativedelta(years = date_kwargs["year"], months = date_kwargs["month"], weeks = date_kwargs["week"], days = date_kwargs["day"], hours = date_kwargs["hour"], minutes = date_kwargs["minute"], seconds = date_kwargs["second"])
         publish_date = get_current_dt(utc = True) - datediff
 
     else:
         publish_date = get_current_dt(utc = True)
     return publish_date
+
