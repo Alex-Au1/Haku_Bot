@@ -855,8 +855,8 @@ class Texting(commands.Cog):
 
         error = False
         error = await ChannelTools.validate_activity_channel(ctx, error)
-        error, thumbnail = await self.validate.validate_image(ctx, error, thumbnail, "thumbnail")
-        error, image = await self.validate.validate_image(ctx, error, image, "image")
+        error, thumbnail = await self.validate.validate_embed_image(ctx, error, thumbnail, "thumbnail")
+        error, image = await self.validate.validate_embed_image(ctx, error, image, "image")
         error, search_guild, search_channel = await SearchTools.validate_sev_ch(self, ctx, error, search_channel, search_guild, action = "send embed",
                                                                                 allow_dm = True, allow_default = True)
 

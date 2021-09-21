@@ -16,7 +16,7 @@ class Bet(Game):
     async def bet(self, ctx: commands.Context):
         if (ctx.invoked_subcommand is None):
             embeded_message = Error.display_error(self.client, 13, command = "bet")
-            await ctx.send(embed = embeded_message)
+            await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
 
     # create(ctx, description, choices, title, hardcore, duration, public, image, thumbnail, channel)
