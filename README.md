@@ -1,4 +1,4 @@
-# Haku_Bot
+# Haku Yowane
 A multipurposed Discord Bot under development that has moderation, a jukebox, virtual betting, youtube webhooks, and lots more
 
 ## Usage
