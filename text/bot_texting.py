@@ -16,6 +16,8 @@ import tools.channels as ChannelTools
 import tools.audit as audit
 from database.database import Database
 from tools.pagination import Pagination, ButtonedMsg
+import pics.image_links as Pics
+from tools.abs_func import AbsFunc
 from typing import Optional, Union, List, Dict, Callable, Any
 
 MESSAGE_UPDATE_WORD_LIM = 750
@@ -30,11 +32,15 @@ ACTIVITY_EMBED_FIELD_TITLES = ["\U0001F5A8 Embeds Before", "\U0001F5A8 Embeds Af
                                "\U0001F5D2 Old Content of the Message"]
 ACTIVITY_EMBED_TITLES = ["A Message is Recently Deleted!", "A Message is Recently Editted!"]
 
+DELETE_IGNORE_LST = []
+
 NO_EDIT = 0
 BEFORE_EDIT = 1
 AFTER_EDIT = 2
 
 MAX_CLEAR = 100
+
+DISCORD_ATTACHMENT_BASE_URL = "https://cdn.discordapp.com/attachments/"
 
 
 #Finding Emojis
@@ -349,8 +355,9 @@ class Texting(commands.Cog):
 
                     embeded_message.set_author(name = server,
                                                icon_url = icon_url)
+
                 try:
-                    embeded_message.set_image(url = url)
+                    embeded_message.embed.set_image(url = url)
                     embeded_message = self.embed.add_section(embeded_message, media_title, f"`{url}`")
                 except:
                     pass
@@ -638,29 +645,34 @@ class Texting(commands.Cog):
         elif (channel.type == discord.ChannelType.private):
             doer = channel.recipient
 
-        embeded_message = await self.format_msg_update(doer, message, channel, target = target)
-        public_embeded_message = await self.format_msg_update(doer, message, channel, public = True, target = target)
+        if (payload.message_id not in DELETE_IGNORE_LST):
+            embeded_message = await self.format_msg_update(doer, message, channel, target = target)
+            public_embeded_message = await self.format_msg_update(doer, message, channel, public = True, target = target)
 
-        if (catch_message):
-            embeded_message = self.show_deleted_content(embeded_message, message, channel)
-            public_embeded_message = self.show_deleted_content(public_embeded_message, message, channel)
+            if (catch_message):
+                embeded_message = self.show_deleted_content(embeded_message, message, channel)
+                public_embeded_message = self.show_deleted_content(public_embeded_message, message, channel)
 
 
-        if (payload.guild_id is not None):
-            server_activity_info = await ChannelTools.get_activity_data(self.client, payload.guild_id)
-            track_enable = server_activity_info["track_message"]
-            activity_channel = server_activity_info["activity_channel"]
-            server = server_activity_info["server"]
+            if (payload.guild_id is not None):
+                server_activity_info = await ChannelTools.get_activity_data(self.client, payload.guild_id)
+                track_enable = server_activity_info["track_message"]
+                activity_channel = server_activity_info["activity_channel"]
+                server = server_activity_info["server"]
+            else:
+                activity_channel = None
+                server = None
+
+            if (activity_channel is not None and track_enable):
+                activity_channel = await ChannelTools.fixed_activity_send(self.client, activity_channel, server, embed = embeded_message)
+
+                if (message is not None):
+                    activity_channel = await self.list_embed_attach(activity_channel, doer, message, channel)
+                    activity_channel = await self.list_embed_attach(activity_channel, doer, message, channel, attachments = True)
+
         else:
-            activity_channel = None
-            server = None
+            DELETE_IGNORE_LST.remove(payload.message_id)
 
-        if (activity_channel is not None and track_enable):
-            activity_channel = await ChannelTools.fixed_activity_send(self.client, activity_channel, server, embed = embeded_message)
-
-            if (message is not None):
-                activity_channel = await self.list_embed_attach(activity_channel, doer, message, channel)
-                activity_channel = await self.list_embed_attach(activity_channel, doer, message, channel, attachments = True)
 
 
     # on_raw_bulk_message_delete(payload) logs when someone deletes messages by bulk
@@ -725,7 +737,6 @@ class Texting(commands.Cog):
                     activity_channel = await self.list_embed_attach(activity_channel, doer, message, channel, type = "delete")
                     activity_channel = await self.list_embed_attach(activity_channel, doer, message, channel, attachments = True)
 
-
     # on_raw_message_edit(payload) logs when someone edits any message that is out of the cache
     # effects: sends a message or embed
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):
@@ -750,7 +761,7 @@ class Texting(commands.Cog):
                 await message.delete()
 
             #ignores the bot's own actions if the message is not in the activity channel
-            else:
+            elif (message.author.id not in members.IGNORED_MEMBERS):
                 embeded_message = await self.format_msg_update(message.author, message, channel,type = "edit")
                 public_embeded_message = await self.format_msg_update(message.author, message, channel,type = "edit", public = True)
                 embeded_message = self.show_editted_content(embeded_message, None, message)
@@ -769,7 +780,6 @@ class Texting(commands.Cog):
                     activity_channel = await ChannelTools.fixed_activity_send(self.client, activity_channel, server, embed = embeded_message)
                     activity_channel = await self.list_embed_attach(activity_channel, message.author, message, channel, type = "edit")
                     activity_channel = await self.list_embed_attach(activity_channel, message.author, message, channel, type = "edit", attachments = True)
-
 
     # on_message_edit(self, before, after) logs for editted message, if the message is still in the cache
     # effects: sends a message or an embed
@@ -857,7 +867,7 @@ class Texting(commands.Cog):
         error = await ChannelTools.validate_activity_channel(ctx, error)
         error, thumbnail = await self.validate.validate_embed_image(ctx, error, thumbnail, "thumbnail")
         error, image = await self.validate.validate_embed_image(ctx, error, image, "image")
-        error, search_guild, search_channel = await SearchTools.validate_sev_ch(self, ctx, error, search_channel, search_guild, action = "send embed",
+        error, search_guild, search_channel = await self.searchtools.validate_sev_ch(ctx, error, search_channel, search_guild, action = "send embed",
                                                                                 allow_dm = True, allow_default = True)
 
         if (not error):
@@ -873,7 +883,7 @@ class Texting(commands.Cog):
             embeded_message = self.embed.embed_message(ctx, description, title, colour, ctx.message.author.name, thumbnail, Embed.EMBED_IMG_SELF, image)
             await search_channel.send(embed = embeded_message.embed, file = embeded_message.file)
 
-
+            
     # hello(ctx) greets the user with hello
     # effects: sends an embed
     async def hello(self, ctx: commands.Context):
@@ -944,20 +954,43 @@ class Texting(commands.Cog):
                 await channel.purge(limit=no_of_messages)
 
 
+    # is_discord_attachment(attachment) Determines if 'attachment' is a url
+    #   to a discord attachment
+    def is_discord_attachment(self, attachment: Any):
+        return (isinstance(attachment, str) and attachment.startswith(DISCORD_ATTACHMENT_BASE_URL))
+
+
     # noticeable_edit(self, ctx, last_message, embeded_message, action) Edits or
     #   deletes the message if the message is the most recent in the channel
     # requires: 'action' is either "edit" or "delete"
+    #           'delay' >= 0
     # effects: may edit, delete or send an embed
     async def noticeable_edit(self, ctx: commands.Context, last_message: discord.Message,
-                              embeded_message: EmbededMessage, action: str = "edit") -> Optional[discord.Message]:
+                              embeded_message: EmbededMessage, action: str = "edit", keep_attachments: bool = True, delay: int = 0) -> Optional[discord.Message]:
         recent_message = await self.searchtools.get_last_message(ctx.channel)
-
         if (recent_message is not None and recent_message.id == last_message.id):
+            if (delay):
+                asyncio.sleep(delay)
+
             if (action == "edit"):
-                await recent_message.edit(embed = embeded_message)
-                return recent_message
+                print(bool(recent_message.attachments))
+                if (recent_message.embeds and recent_message.embeds[0].image != discord.Embed.Empty):
+                    print(recent_message.embeds[0].image.url)
+                print()
+                if (embeded_message.file is None and
+                    ((not recent_message.attachments and
+                      not (recent_message.embeds and self.is_discord_attachment(recent_message.embeds[0].image.url))) or
+                     keep_attachments)):
+                    await recent_message.edit(embed = embeded_message.embed)
+                    return recent_message
+                else:
+                    DELETE_IGNORE_LST.append(recent_message.id)
+                    await recent_message.delete()
+                    new_message = await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
+                    return new_message
             elif (action == "delete"):
                 try:
+                    DELETE_IGNORE_LST.append(recent_message.id)
                     await recent_message.delete()
                 except:
                     pass
@@ -990,7 +1023,7 @@ class Texting(commands.Cog):
                 err_description += ", "
 
         msg = await self.client.wait_for('message', check=check)
-        question_content = question_embed.description
+        question_content = question_embed.embed.description
 
         embeded_message = self.embed.bot_embed(ctx, f"For the statement:\n```\n{question_content}\n```\n\n{err_description}", "Invalid Input", "red", 2, {pics.ImageCategory.Default: 0})
 
@@ -1018,6 +1051,36 @@ class Texting(commands.Cog):
         return msg.content
 
 
+    # question(ctx, question, question_title, set_value, values_to_check) Asks the user to
+    #   enable or disable a certain tracking attribute
+    async def question(self, ctx: commands.Context, question: str, question_title: str, set_value: bool = True, replacements = {"enable": "disable", "Enable": "Disable"}, fields: Dict[str, str] = {}) -> str:
+        default_pic = {Pics.ImageCategory.Default: 0}
+        values_to_check = StringTools.TRUE + StringTools.FALSE
+
+        if (not set_value):
+            question = StringTools.word_replace(question, replacements)
+            question_title = StringTools.word_replace(question_title, replacements)
+
+        question_embed = self.embed.bot_embed(ctx, question, question_title, "yellow", 2, default_pic)
+        question_embed = self.embed.multi_add_section(question_embed, fields)
+        question_embed = self.embed.add_section(question_embed, "Yes (y)", "\U0001F44D", True)
+        question_embed = self.embed.add_section(question_embed, "No (n)", "\U0001F44E", True)
+        return await self.continual_ask(ctx, question_embed, values_to_check)
+
+
+    # answer(ctx, answer_desc, answer_title, set_value, values_to_check) Displays the message
+    #   to confirm that the setting value to a tracking attribute has been changed
+    async def answer(self, ctx: commands.Context, answer_desc: str, answer_title: str, set_value: bool = True, replacements = {"enable": "disable", "Enable": "Disable"}, fields: Dict[str, str] = {}):
+        default_pic = {Pics.ImageCategory.Default: 0}
+
+        if (not set_value):
+            answer_desc = StringTools.word_replace(answer_desc, replacements)
+            answer_title = StringTools.word_replace(answer_title, replacements)
+        answer_embed = self.embed.bot_embed(ctx, answer_desc, answer_title, "light-green", 2, default_pic)
+        answer_embed = self.embed.multi_add_section(answer_embed, fields)
+        await ctx.send(embed = answer_embed.embed, file = answer_embed.file)
+
+
     # paginated_continual_ask(self, ctx, current_page, max_page, generate_pg, generate_pg_kwargs, values_to_check) Continuosly asks
     #   the user until the correct value is reached for paginated embeds
     #   for the question
@@ -1025,15 +1088,14 @@ class Texting(commands.Cog):
     #           1 <= current_page
     # effects: sends messages and deletes message
     async def paginated_continual_ask(self, ctx: commands.Context, current_page: int,
-                                      max_page: int, generate_pg: Callable[[int, int, Dict[str, Any]], EmbededMessage],
-                                      generate_pg_kwargs: Dict[str, Any], values_to_check: List[str],
+                                      max_page: int, generate_pg: AbsFunc, values_to_check: List[str],
                                       delete_question: bool = True) -> str:
-        embeded_message = await generate_pg(current_page, max_page, generate_pg_kwargs)
+        embeded_message = await generate_pg.async_run(pre_args = [current_page, max_page])
         paginated_components = Pagination.make_page_buttons(current_page, max_page)
         sent_message = await ctx.send(embed = embeded_message.embed, file = embeded_message.file, components = paginated_components)
 
         done, pending = await asyncio.wait([self.continual_ask(ctx, embeded_message, values_to_check, send_question = False),
-                                            Pagination.page_react(self.client, sent_message, current_page, max_page, generate_pg, generate_pg_kwargs)],
+                                            Pagination.page_react(self.client, sent_message, current_page, max_page, generate_pg)],
                                            return_when=asyncio.FIRST_COMPLETED)
         for t in done:
             result = t.result()
@@ -1071,8 +1133,7 @@ class Texting(commands.Cog):
     # effects: sends messages
     async def paginated_announcement(self, ctx: commands.Context, msg_lst: List[ButtonedMsg],
                                      current_page: int, max_page: int, embeded_message: EmbededMessage,
-                                     generate_pg: Callable[[int, int, Dict[str, Any]], discord.Embed], generate_pg_kwargs: Dict[str, Any],
-                                     paginated_components: List[List[Button]], pin: bool = False,
+                                     generate_pg: AbsFunc, paginated_components: List[List[Button]], pin: bool = False,
                                      condition: Optional[Callable[discord.Guild, bool]] = None, condition_kwargs: Dict[str, Any] = {}):
         for g in self.client.guilds:
             if (condition is None or (condition is not None and condition(g, condition_kwargs))):
@@ -1086,7 +1147,7 @@ class Texting(commands.Cog):
         if (pin):
             for m in msg_lst:
                 await m.message.channel.purge(limit=1)
-        await Pagination.multi_page_react(self.client, msg_lst, generate_pg, generate_pg_kwargs)
+        await Pagination.multi_page_react(self.client, msg_lst, generate_pg)
 
 
     # delay_send(cls, ctx, time, embed) Send an message with a delay

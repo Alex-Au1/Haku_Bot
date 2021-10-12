@@ -12,6 +12,7 @@ import tools.members as Members
 from database.database import Database, SelectType
 from set_up.server_settings import ServerSettings
 from set_up.user_settings import UserSettings
+from tools.abs_func import AbsFunc
 from typing import Optional, Any, Dict, Union
 
 
@@ -86,10 +87,10 @@ class LocationAndTime():
         if (not error):
             # get current datetime
             if (in_server):
-                timezone = Database.default_select(ServerSettings.default_setting, SelectType.List, ["timezone", "Server_Accounts"], {"conditions": {"id": ctx.guild.id}}, [ctx], {})[0]
+                timezone = Database.default_select(ServerSettings.default_setting, SelectType.List, ["timezone", "Server_Accounts"], {"conditions": {"id": f"{ctx.guild.id}"}}, [ctx], {})[0]
                 thumbnail = str(ctx.guild.icon_url)
             else:
-                timezone = Database.default_select(UserSettings.default_setting, SelectType.List, ["timezone", "User_Accounts"], {"conditions": {"id": ctx.author.id}}, [ctx], {})[0]
+                timezone = Database.default_select(UserSettings.default_setting, SelectType.List, ["timezone", "User_Accounts"], {"conditions": {"id": f"{ctx.author.id}"}}, [ctx], {})[0]
                 thumbnail = str(ctx.author.avatar_url)
 
             embeded_message = await self.make_date(ctx, timezone, thumbnail = thumbnail)
@@ -197,10 +198,10 @@ class LocationAndTime():
         if (not error):
             # get current region
             if (in_server):
-                region = Database.default_select(ServerSettings.default_setting, SelectType.List, ["region", "Server_Accounts"], {"conditions": {"id": ctx.guild.id}}, [ctx], {})[0]
+                region = Database.default_select(ServerSettings.default_setting, SelectType.List, ["region", "Server_Accounts"], {"conditions": {"id": f"{ctx.guild.id}"}}, [ctx], {})[0]
                 thumbnail = str(ctx.guild.icon_url)
             else:
-                region = Database.default_select(UserSettings.default_setting, SelectType.List, ["region", "User_Accounts"], {"conditions": {"id": ctx.author.id}}, [ctx], {})[0]
+                region = Database.default_select(UserSettings.default_setting, SelectType.List, ["region", "User_Accounts"], {"conditions": {"id": f"{ctx.author.id}"}}, [ctx], {})[0]
                 thumbnail = str(ctx.author.avatar_url)
 
             embeded_message = await self.make_weather(ctx, region, thumbnail = thumbnail)
@@ -233,6 +234,7 @@ class LocationAndTime():
             embeded_message = generate_embed_data["embeded_message"]
             generate_pg_kwargs = generate_embed_data["generate_pg_kwargs"]
             paginated_components = Pagination.make_page_buttons(current_page, max_page)
+            generate_page = AbsFunc(self.generate_forecast_pg, kwargs = {"kwargs": generate_pg_kwargs})
 
             sent_message = await ctx.send(embed = embeded_message.embed, file = embeded_message.file, components = paginated_components)
-            await Pagination.page_react(self.client, sent_message, current_page, max_page, self.generate_forecast_pg, generate_pg_kwargs)
+            await Pagination.page_react(self.client, sent_message, current_page, max_page, generate_page)

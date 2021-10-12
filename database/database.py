@@ -1,11 +1,12 @@
 import psycopg2, enum
 from tools.string import StringTools
+from tools.abs_func import AbsFunc
 from typing import Dict, Any, List, Optional, Union, Callable
 
 DATABASE = "my_database"
 USERNAME = "my_username"
 PASSWORD = "my_password"
-HOST = "the_host_of_my_database"
+HOST = "my_host"
 PORT = "some_port"
 
 STRING_QUOTE = "\'"
@@ -320,31 +321,33 @@ class Database:
     # general_select(select_type, select_args, select_kwargs) Selects data
     #   from the database and format the data based from 'select_type'
     @classmethod
-    def general_select(cls, select_type: SelectType, select_args: List[Any], select_kwargs: Dict[str, Any]) -> Union[List[List[Any]], List[Dict[str, Any]], Dict[str, Dict[str, Any]], List[Any]]:
+    def general_select(cls, select_type: SelectType, select_args: List[Any], select_kwargs: Dict[str, Any]) -> AbsFunc:
         if (select_type == SelectType.Select):
-            selected_result = cls.select(*select_args, **select_kwargs)
+            selected_func = cls.select
         elif (select_type == SelectType.Formatted):
-            selected_result = cls.formatted_select(*select_args, **select_kwargs)
+            selected_func = cls.formatted_select
         elif (select_type == SelectType.List):
-            selected_result = cls.list_select(*select_args, **select_kwargs)
+            selected_func = cls.list_select
         elif (select_type == SelectType.Hash):
-            selected_result = cls.hash_select(*select_args, **select_kwargs)
+            selected_func = cls.hash_select
 
-        return selected_result
+        select_func_package = AbsFunc(selected_func, args = select_args, kwargs = select_kwargs)
+        return select_func_package
 
 
     # default_select(default_row_func, select_type, select_args, select_kwargs, default_func_args, default_func_kwargs)
     #   Selects data from the database and creates a new entry in the table if
     #   the selected data is not found
     @classmethod
-    def default_select(cls, default_row_func: Callable[[...], Union[List[List[Any]], List[Dict[str, Any]],
-                       Dict[str, Dict[str, Any]], List[Any]]], select_type: SelectType, select_args: List[Any],
+    def default_select(cls, default_row_func: Callable[[...], Union[List[List[Any]], List[Dict[str, Any]], Dict[str, Dict[str, Any]], List[Any]]],
+                       select_type: SelectType, select_args: List[Any],
                        select_kwargs: Dict[str, Any], default_func_args: List[Any], default_func_kwargs: Dict[str, Any]) -> Union[List[List[Any]], List[Dict[str, Any]], Dict[str, Dict[str, Any]], List[Any]]:
-        selected_result = cls.general_select(select_type, select_args, select_kwargs)
+        selected_func_package = cls.general_select(select_type, select_args, select_kwargs)
+        selected_result = selected_func_package.run()
 
         if (selected_result):
             return selected_result
         else:
             default_row_func(*default_func_args, **default_func_kwargs)
-            selected_result = cls.general_select(select_type, select_args, select_kwargs)
+            selected_result = selected_func_package.run()
             return selected_result

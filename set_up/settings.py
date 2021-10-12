@@ -11,8 +11,8 @@ import tools.error as Error
 import pics.image_links as Pics
 from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType
 from tools.pagination import Pagination, ButtonedMsg
-import sorting.sort as SortTools
 import tools.datetime as DateTools
+from tools.abs_func import AbsFunc
 from typing import Union, Dict, List, Any, Optional
 
 
@@ -27,6 +27,7 @@ class SettingChangeState(enum.Enum):
 class SettingTypes(enum.Enum):
     Server = "server"
     User = "user"
+    Music = "music"
 
 
 # SettingItem: Leafs for the tree in the settings
@@ -66,7 +67,12 @@ SETTING_LST = [SettingItem("prefixes", 2, "Server_Accounts", "prefixes", DataTyp
                SettingItem("Sync Time", 13, "Server_Accounts", "sync_time", DataTypes.Bool, "Indicates whether the timezone of the server is synchronized with the selected region of the server"),
                SettingItem("Timezone", 2, "User_Accounts", "timezone", DataTypes.Str, "Sets all datetime information for the user to the specific timezone. The entries for the timezone are the timezones used in the *pytz* module. You can view the selection for the timezones [here](https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568)"),
                SettingItem("Region", 3, "User_Accounts", "region", DataTypes.Str, "Sets the region for where the user is located"),
-               SettingItem("Sync Time", 4, "User_Accounts", "sync_time", DataTypes.Bool, "Indicates whether the timezone of the user is synchronized with the selected region of the user")]
+               SettingItem("Sync Time", 4, "User_Accounts", "sync_time", DataTypes.Bool, "Indicates whether the timezone of the user is synchronized with the selected region of the user"),
+               SettingItem("Volume", 2, "Server_Music", "vol", DataTypes.Int, "The volume of the audio being played"),
+               SettingItem("Pitch", 3, "Server_Music", "pitch", DataTypes.Str, "The pitch that the audio is being played"),
+               SettingItem("Loop", 4, "Server_Music", "loop", DataTypes.Bool, "Indicates whether the server's playlist is being looped"),
+               SettingItem("Repeat", 5, "Server_Music", "repeat", DataTypes.Str, "Indicates which song on the server's playlist will be played on repeat"),
+               SettingItem("Random", 6, "Server_Music", "random", DataTypes.Bool, "Indicates whether the next songs will be randomly selected not according to the order of the playlist")]
 
 
 TRACK_INFO = {"MESSAGE": SETTING_LST[1],
@@ -79,7 +85,8 @@ TRACK_INFO = {"MESSAGE": SETTING_LST[1],
 
 FULL_SETTINGS = {SettingTypes.Server: SettingTree(SettingTypes.Server.value, [SETTING_LST[0], SettingCategory("Time and Place \U0001F30E \U000023F1", [SETTING_LST[6], SETTING_LST[7], SETTING_LST[8]]),
                                                                               SettingCategory("Activity Moderation \U0001F50D", [TRACK_INFO["MESSAGE"], TRACK_INFO["ACTIVITY"], TRACK_INFO["VOICE"], TRACK_INFO["TYPING"], TRACK_INFO["GUILD"]])]),
-                 SettingTypes.User: SettingTree(SettingTypes.User.value, [SettingCategory("Time and Place \U0001F30E \U000023F1", [SETTING_LST[9], SETTING_LST[10], SETTING_LST[11]])])}
+                 SettingTypes.User: SettingTree(SettingTypes.User.value, [SettingCategory("Time and Place \U0001F30E \U000023F1", [SETTING_LST[9], SETTING_LST[10], SETTING_LST[11]])]),
+                 SettingTypes.Music: SettingTree(SettingTypes.Music.value, [SettingCategory("Sound \U0001F50A", [SETTING_LST[12], SETTING_LST[13]]), SettingCategory("Playlist \U0001F3B6 \U0001F3A7", [SETTING_LST[14], SETTING_LST[15], SETTING_LST[16]])])}
 
 
 # BotSettings: Controls all the settings for the bot
@@ -312,7 +319,7 @@ class BotSettings(commands.Cog):
 
     # view(ctx, category) Views the settings for a specific setting type
     # effects: sends embeds
-    async def view(self, ctx: commands.Context, category: SettingTypes):
+    async def view(self, ctx: commands.Context, category: SettingTypes, **kwargs):
         if (category != SettingTypes.Server or (category == SettingTypes.Server and ctx.guild is not None)):
             message = f"Here are the {category.value} settings"
             title = f"{StringTools.str_capitalize(category.value)} Settings"
@@ -333,13 +340,24 @@ class BotSettings(commands.Cog):
                 colour = "light-purple"
                 setting_tree = FULL_SETTINGS[SettingTypes.User]
 
+            elif (category == SettingTypes.Music):
+                table = "Server_Music"
+                conditions = {"id": f"{ctx.guild.id}"}
+                message = "Here are my performance settings"
+                thumbnail = str(ctx.guild.icon_url)
+                colour = "light-purple"
+                setting_tree = FULL_SETTINGS[SettingTypes.Music]
+
+
             columns_needed = self.get_columns_needed(setting_tree, [])
-            setting_data = Database.formatted_select(columns_needed, columns_needed, table, conditions = conditions)
-            if (setting_data):
-                setting_data = setting_data[0]
-            else:
-                self.default_setting(ctx)
-                setting_data = Database.formatted_select(columns_needed, columns_needed, table, conditions = conditions)[0]
+            if (category != SettingTypes.Music):
+                setting_data = Database.formatted_select(columns_needed, columns_needed, table, conditions = conditions)
+
+                if (setting_data):
+                    setting_data = setting_data[0]
+                else:
+                    self.default_setting(ctx)
+                    setting_data = Database.formatted_select(columns_needed, columns_needed, table, conditions = conditions)[0]
 
             if (category == SettingTypes.Server or category == SettingTypes.User):
                 if (category == SettingTypes.Server):
@@ -353,6 +371,9 @@ class BotSettings(commands.Cog):
 
                 setting_data[SETTING_LST[tz_index].col] = DateTools.format_timezone(setting_data[SETTING_LST[tz_index].col], setting_data[SETTING_LST[region_index].col], setting_data[SETTING_LST[sync_index].col])
 
+            elif (category == SettingTypes.Music):
+                setting_data = {"vol": kwargs["vol"], "pitch": kwargs["pitch"], "loop": kwargs["loop"], "repeat": kwargs["repeat"], "random": kwargs["random"]}
+
             total_items, categories = self.get_setting_categories(setting_tree, 0)
             page_categories = self.get_setting_pages(total_items, categories)
 
@@ -363,4 +384,5 @@ class BotSettings(commands.Cog):
             embeded_message = await self.generate_setting_pg(page, max_page, generate_setting_pg_kwargs)
             paginated_components = Pagination.make_page_buttons(page, max_page)
 
-            await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, self.generate_setting_pg, generate_setting_pg_kwargs)
+            generate_page = AbsFunc(self.generate_setting_pg, kwargs = generate_setting_pg_kwargs)
+            await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, generate_page)

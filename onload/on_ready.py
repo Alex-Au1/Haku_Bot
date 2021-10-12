@@ -1,9 +1,7 @@
 import discord, random, asyncio
 from discord.ext import commands, tasks
 import tools.audit as audit
-from search.youtube_client import Youtube
 from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType
-from set_up.setting_client import Settings
 
 #statuses of the bot
 status = [["playing", "having fun with you! <3"], ["watching", "you in pleasure! <3"], ["listening", "to your rhythm! <3"], ["playing", "love with you! <3"], ["listening", "you! <3"], ["playing","with you! <3"]]
@@ -18,10 +16,6 @@ class Ready(commands.Cog):
         self.change_status.start()
         self.status_color = "online"
         self.audits = audit.Audits(client)
-        self.youtube = Youtube(client)
-        self.youtube.channel_updates.start()
-        self.settings = Settings(client)
-        self.settings.update_time.start()
 
     #stopping the status background task
     def cog_unload(self):
@@ -33,7 +27,7 @@ class Ready(commands.Cog):
     async def on_ready(self):
         DiscordComponents(self.client)
         print('We have logged in as {0.user}'.format(self.client))
-        await asyncio.gather(*[self.audits.get_recent_audit(), self.youtube.youtube.prepare_latest_videos()])
+        await self.audits.get_recent_audit()
         await self.client.change_presence(activity=discord.Game("with you! <3"))
 
 
