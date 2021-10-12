@@ -14,10 +14,11 @@ import tools.datetime as DateTools
 from tools.pagination import Pagination, ButtonedMsg
 from tools.validate import Validate
 import tools.error as Error
-from sorting.sort import object_merge_sort
+from tools.sort import object_merge_sort
 from database.database import Database
 from text.bot_texting import Texting
 import pics.image_links as Pics
+from tools.abs_func import AbsFunc
 from typing import List, Union, Dict, Any, Optional
 
 BET_COL_NAMES = ["id", "bets", "server_id", "message_id", "date", "bet_title", "bet_message", "gamemode", "public", "channel_id",
@@ -822,10 +823,11 @@ class Betting(Game):
 
             generate_host_pg_kwargs = {"description": description, "title": embed_title, "name": author_name, "thumbnail": None,
                                        "image": None, "original_host": original_host, "additional_hosts": add_host_names, "ctx": ctx, "colour": "yellow"}
+            generate_pg = AbsFunc(self.generate_host_pg, kwargs = {"kwargs": generate_host_pg_kwargs})
             embeded_message = await self.generate_host_pg(current_page, max_page, generate_host_pg_kwargs)
             paginated_components = Pagination.make_page_buttons(current_page, max_page)
 
-            await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, current_page, max_page, self.generate_host_pg, generate_host_pg_kwargs)
+            await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, current_page, max_page, generate_pg)
         return hosted_bet
 
 
@@ -913,8 +915,8 @@ class Betting(Game):
                                       "duration": formatted_duration, "user_bet": None,
                                       "description": "Do you want to create this bet?", "embed_title": "\U0001F50D Preview of Bet",
                                       "colour": "yellow", "name": name, "thumbnail": thumbnail, "image": image, "bet_id": None}
-
-            confirm_make_bet = await self.text.paginated_continual_ask(ctx, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs, self.values_to_check)
+            generate_pg = AbsFunc(self.generate_bet_pg, kwargs = {"kwargs": generate_bet_pg_kwargs})
+            confirm_make_bet = await self.text.paginated_continual_ask(ctx, page, max_page, generate_pg, self.values_to_check)
 
 
             if (confirm_make_bet in StringTools.TRUE):
@@ -940,6 +942,7 @@ class Betting(Game):
                                           "bet_id": bet_id, "ctx": ctx, "duration": formatted_duration,
                                           "description": description, "embed_title": embed_title, "colour": colour,
                                           "name": name, "thumbnail": thumbnail, "image": image}
+                generate_pg = AbsFunc(self.generate_bet_pg, kwargs = {"kwargs": generate_bet_pg_kwargs})
                 embeded_message = await self.generate_bet_pg(page, max_page, generate_bet_pg_kwargs)
 
                 await ctx.message.delete()
@@ -958,11 +961,11 @@ class Betting(Game):
                             await temp_message.pin()
                             msg_lst.append(ButtonedMsg(temp_message, page, max_page))
 
-                    await asyncio.gather(*([m.message.channel.purge(limit=1) for m in msg_lst] + [Pagination.multi_page_react(self.client, msg_lst, self.generate_bet_pg, generate_bet_pg_kwargs)]))
+                    await asyncio.gather(*([m.message.channel.purge(limit=1) for m in msg_lst] + [Pagination.multi_page_react(self.client, msg_lst, generate_pg)]))
 
                 else:
                     await sending_channel.purge(limit=1)
-                    await Pagination.page_react(self.client, sent_message, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs)
+                    await Pagination.page_react(self.client, sent_message, page, max_page, generate_pg)
 
                 self.database.update({"message_id": f"{sent_message.id}"}, "Server_Bets", {"id":f"{bet_id}"})
 
@@ -983,13 +986,13 @@ class Betting(Game):
         error = await ChannelTools.validate_private_channel(ctx, self.client, error, name, "edit a bet")
         error = await ChannelTools.validate_activity_channel(ctx, error)
         error, bet_id = await self.validate.validate_natural(ctx, error, bet_id, "bet_id")
-        if (image != StringTools.NONE):
+        if (image is not None):
             error, image = await self.validate.validate_editted_image(ctx, error, image, "image")
 
-        if (thumbnail != StringTools.NONE):
+        if (thumbnail is not None):
             error, thumbnail = await self.validate.validate_editted_image(ctx, error, image, "thumbnail")
 
-        if (duration != StringTools.NONE):
+        if (duration is not None):
             negative_duration = False
             if (duration[0] == "-"):
                 negative_duration = True
@@ -1033,16 +1036,17 @@ class Betting(Game):
 
                     generate_bet_pg_kwargs = {"choices": choices, "bet_embed_state": bet_embed_state, "bet_id": bet_id, "ctx": ctx, "bet_result": bet_result, "duration": current_duration,
                                               "description": description, "embed_title": title, "colour": colour, "name": name, "thumbnail": display_thumbnail, "image": display_image, "user_bet": None}
+                    generate_pg = AbsFunc(self.generate_bet_pg, kwargs = {"kwargs": generate_bet_pg_kwargs})
 
                     # when no changes are made to the bet
                     if (duration_diff is None and image is None and thumbnail is None):
-                        generate_bet_pg_kwargs["description"] = f"No changes made to `bet {bet_id}`"
-                        generate_bet_pg_kwargs["embed_title"] = "No Changes Made"
-                        generate_bet_pg_kwargs["colour"] = "light-green"
+                        generate_pg.kwargs["kwargs"]["description"] = f"No changes made to `bet {bet_id}`"
+                        generate_pg.kwargs["kwargs"]["embed_title"] = "No Changes Made"
+                        generate_pg.kwargs["kwargs"]["colour"] = "light-green"
 
                         embeded_message = await self.generate_bet_pg(page, max_page, generate_bet_pg_kwargs)
                         paginated_components = Pagination.make_page_buttons(page, max_page)
-                        await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs)
+                        await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, generate_pg)
 
                     else:
                         # change for the thumbnail and the image
@@ -1097,22 +1101,22 @@ class Betting(Game):
 
                         # ask the user to confirm the change
                         display_thumbnail, display_image = self.get_thumbnail_and_image(thumbnail, image)
-                        generate_bet_pg_kwargs["duration"] = formatted_duration
-                        generate_bet_pg_kwargs["thumbnail"] = display_thumbnail
-                        generate_bet_pg_kwargs["image"] = display_image
-                        confirm_make_bet = await self.text.paginated_continual_ask(ctx, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs, self.values_to_check)
+                        generate_pg.kwargs["kwargs"]["duration"] = formatted_duration
+                        generate_pg.kwargs["kwargs"]["thumbnail"] = display_thumbnail
+                        generate_pg.kwargs["kwargs"]["image"] = display_image
+                        confirm_make_bet = await self.text.paginated_continual_ask(ctx, page, max_page, generate_pg, self.values_to_check)
 
                         # send the confimation for the change
                         if (confirm_make_bet in StringTools.TRUE):
                             self.database.update({"date": f"'{end_date}'", "thumbnail": f"'{thumbnail}'", "image": f"'{image}'"}, "Server_Bets", {"id":f"{bet_id}"})
 
-                            generate_bet_pg_kwargs["description"] = f"Change successfully made to `bet {bet_id}`"
-                            generate_bet_pg_kwargs["embed_title"] = "\U00002705 Changes Made"
-                            generate_bet_pg_kwargs["colour"] = "light-green"
+                            generate_pg.kwargs["kwargs"]["description"] = f"Change successfully made to `bet {bet_id}`"
+                            generate_pg.kwargs["kwargs"]["embed_title"] = "\U00002705 Changes Made"
+                            generate_pg.kwargs["kwargs"]["colour"] = "light-green"
 
                             embeded_message = await self.generate_bet_pg(page, max_page, generate_bet_pg_kwargs)
                             paginated_components = Pagination.make_page_buttons(page, max_page)
-                            await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs)
+                            await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, generate_pg)
 
 
     # update_hosts(self, ctx, bet_id, search_member, name, image, thumbnail, bet_update_state)
@@ -1158,9 +1162,10 @@ class Betting(Game):
             # send the confirmation message
             generate_host_pg_kwargs = {"description": description, "title": title, "name": name, "image": image, "thumbnail": thumbnail,
                                        "original_host": original_host, "additional_hosts": add_host_names, "ctx": ctx, "colour": "light-green"}
+            generate_pg = AbsFunc(self.generate_host_pg, kwargs = {"kwargs": generate_host_pg_kwargs})
             embeded_message = await self.generate_host_pg(current_page, max_page, generate_host_pg_kwargs)
             paginated_components = Pagination.make_page_buttons(current_page, max_page)
-            sent_message = await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, current_page, max_page, self.generate_host_pg, generate_host_pg_kwargs)
+            sent_message = await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, current_page, max_page, generate_pg)
 
 
     # add_host(ctx, bet_id, person) Adds another person who can also host the bet
@@ -1305,9 +1310,10 @@ class Betting(Game):
 
                     generate_bet_pg_kwargs = {"choices": choices, "bet_embed_state": bet_embed_state, "bet_id": bet_id, "ctx": ctx, "bet_result": bet_result, "user_bet": None, "bet_play_state": None, "old_user_bet": None,
                                               "description": description, "embed_title": title, "colour": colour, "name": name, "thumbnail": thumbnail, "image": image}
+                    generate_pg = AbsFunc(self.generate_bet_pg, kwargs = {"kwargs": generate_bet_pg_kwargs})
 
                     # continuosly asks the user
-                    answer_msg = await self.text.paginated_continual_ask(ctx, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs, self.values_to_check)
+                    answer_msg = await self.text.paginated_continual_ask(ctx, page, max_page, generate_pg, self.values_to_check)
 
                     # remove the bet
                     if (answer_msg in StringTools.TRUE):
@@ -1315,14 +1321,15 @@ class Betting(Game):
                         self.database.delete("Server_Bets", {"id":f"{bet_id}"})
                         await self.get_all_user_bets(bet_id, remove_bet = True)
 
-                        generate_bet_pg_kwargs["embed_title"] = "Bet Successfully Removed \U00002705"
-                        generate_bet_pg_kwargs["description"] = f"`bet {bet_id}` has been removed"
-                        generate_bet_pg_kwargs["colour"] = "light-green"
-                        generate_bet_pg_kwargs["bet_embed_state"] = BetEmbedState.Confirm
+                        generate_pg.kwargs["kwargs"]["embed_title"] = "Bet Successfully Removed \U00002705"
+                        generate_pg.kwargs["kwargs"]["description"] = f"`bet {bet_id}` has been removed"
+                        generate_pg.kwargs["kwargs"]["colour"] = "light-green"
+                        generate_pg.kwargs["kwargs"]["bet_embed_state"] = BetEmbedState.Confirm
+
                         embeded_message = await self.generate_bet_pg(page, max_page, generate_bet_pg_kwargs)
                         paginated_components = Pagination.make_page_buttons(page, max_page)
 
-                        await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs)
+                        await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, generate_pg)
 
 
     # update_bet(self, ctx, bet_result, choices, bet_id, choice_no, amount)
@@ -1355,9 +1362,10 @@ class Betting(Game):
                                   "bet_result": bet_result, "user_bet": UserBets(bet_id, choice_no, amount),
                                   "description": description, "embed_title": embed_title, "colour": colour, "name": name,
                                   "thumbnail": thumbnail, "image": image, "bet_play_state": state, "old_user_bet": old_user_bet}
+        generate_pg = AbsFunc(self.generate_bet_pg, kwargs = {"kwargs": generate_bet_pg_kwargs})
 
         # continuosly asks the user
-        answer_msg = await self.text.paginated_continual_ask(ctx, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs, self.values_to_check)
+        answer_msg = await self.text.paginated_continual_ask(ctx, page, max_page, generate_pg, self.values_to_check)
 
         if (answer_msg in StringTools.TRUE):
             new_bet = self.update_user_bets(user_bets["current_bets"], bet_id, choice_no, amount, state = state, old_bet = old_user_bet)
@@ -1390,17 +1398,18 @@ class Betting(Game):
                 description = description.replace("made", "removed")
                 embed_title = embed_title.replace("Made", "Removed")
 
-            generate_bet_pg_kwargs["embed_title"] = description
-            generate_bet_pg_kwargs["description"] = embed_title
-            generate_bet_pg_kwargs["colour"] = "light-green"
-            generate_bet_pg_kwargs["bet_embed_state"] = BetEmbedState.Confirm
+            generate_pg.kwargs["kwargs"]["embed_title"] = description
+            generate_pg.kwargs["kwargs"]["description"] = embed_title
+            generate_pg.kwargs["kwargs"]["colour"] = "light-green"
+            generate_pg.kwargs["kwargs"]["bet_embed_state"] = BetEmbedState.Confirm
 
             if (state == BetPlayState.Change):
-                generate_bet_pg_kwargs["old_user_bet"] = old_user_bet
+                generate_pg.kwargs["kwargs"]["old_user_bet"] = old_user_bet
+
             embeded_message = await self.generate_bet_pg(page, max_page, generate_bet_pg_kwargs)
             paginated_components = Pagination.make_page_buttons(page, max_page)
 
-            await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs)
+            await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, generate_pg)
 
 
     # play(self, ctx, bet_id, choice_no, amount) Participate in a bet by the id
@@ -1628,11 +1637,12 @@ class Betting(Game):
 
                 # format the embeds and buttons to be sent
                 generate_bet_view_pg_kwargs = {"author_name": author_name, "bet_results": bet_result, "search_member": search_member, "server": None, "channel": None, "ctx": ctx, "bet_view_state": BetViewState.User, "bet_id": bet_id}
+                generate_pg = AbsFunc(self.generate_bet_view_pg, kwargs = {"kwargs": generate_bet_view_pg_kwargs})
                 embeded_message = await self.generate_bet_view_pg(page, max_page, generate_bet_view_pg_kwargs)
                 paginated_components = Pagination.make_page_buttons(page, max_page)
 
                 # send the message
-                await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, self.generate_bet_view_pg, generate_bet_view_pg_kwargs)
+                await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, generate_pg)
 
             else:
                 member_name = Members.convert_name(search_member.id, search_member)
@@ -1701,11 +1711,12 @@ class Betting(Game):
                     max_page = 1
 
                 generate_bet_view_pg_kwargs = {"author_name": author_name, "bet_results": bet_result, "search_member": search_member, "server": search_server, "channel": search_channel, "ctx": ctx, "bet_view_state": BetViewState.Server, "bet_id": bet_id}
+                generate_pg = AbsFunc(self.generate_bet_view_pg, kwargs = {"kwargs": generate_bet_view_pg_kwargs})
                 embeded_message = await self.generate_bet_view_pg(page, max_page, generate_bet_view_pg_kwargs)
                 paginated_components = Pagination.make_page_buttons(page, max_page)
 
                 # send the message
-                await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, self.generate_bet_view_pg, generate_bet_view_pg_kwargs)
+                await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, generate_pg)
 
 
     # bet_details(ctx, bet_id) Lists the details of a certain bet match
@@ -1807,12 +1818,12 @@ class Betting(Game):
                     duration = self.get_formatted_duration(bet_result[0]["date"])
                 generate_bet_pg_kwargs = {"choices": choices, "bet_embed_state": bet_embed_state, "bet_id": bet_id, "ctx": ctx, "bet_result": bet_result[0], "original_host": original_host, "additional_hosts": add_host_names, "duration": duration,
                                           "description": description, "embed_title": title, "colour": colour, "name": name, "thumbnail": thumbnail, "image": image, "user_bet": current_bet, "bet_counts": [bet_counts, bet_ratio]}
-
+                generate_pg = AbsFunc(self.generate_bet_pg, kwargs = {"kwargs": generate_bet_pg_kwargs})
                 embeded_message = await self.generate_bet_pg(page, max_page, generate_bet_pg_kwargs)
                 paginated_components = Pagination.make_page_buttons(page, max_page)
 
                 # send the message
-                await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs)
+                await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, generate_pg)
 
 
     # get_player_values(self, lo_players) Get the value for a player's betting
@@ -2166,27 +2177,29 @@ class Betting(Game):
                         generate_bet_pg_kwargs = {"choices": choices, "bet_embed_state": bet_embed_state, "bet_id": bet_id, "ctx": ctx, "bet_result": bet_result, "user_bet": UserBets(bet_id, choice_no, 0),
                                                   "description": description, "embed_title": f"Verification for the Result of Bet {bet_id}", "colour": "yellow", "name": name, "thumbnail": thumbnail, "image": image,
                                                   "bet_play_state": BetPlayState.Result, "old_user_bet": None, "result": choice_no - 1}
+                        generate_pg = AbsFunc(self.generate_bet_pg, kwargs = {"kwargs": generate_bet_pg_kwargs})
 
                         # continuosly asks the user
-                        answer_msg = await self.text.paginated_continual_ask(ctx, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs, self.values_to_check)
+                        answer_msg = await self.text.paginated_continual_ask(ctx, page, max_page, generate_pg, self.values_to_check)
 
                         if (answer_msg in StringTools.TRUE):
-                            generate_bet_pg_kwargs["bet_embed_state"] = BetEmbedState.Result
-                            generate_bet_pg_kwargs["colour"] = self.get_game_colour(gamemode, BetEmbedState.Result)
-                            generate_bet_pg_kwargs["embed_title"] = f"Results to Bet {bet_id}"
-                            generate_bet_pg_kwargs["description"] = f"Here are the results to `bet {bet_id}`"
+                            generate_pg.kwargs["kwargs"]["bet_embed_state"] = BetEmbedState.Result
+                            generate_pg.kwargs["kwargs"]["colour"] = self.get_game_colour(gamemode, BetEmbedState.Result)
+                            generate_pg.kwargs["kwargs"]["embed_title"] = f"Results to Bet {bet_id}"
+                            generate_pg.kwargs["kwargs"]["description"] = f"Here are the results to `bet {bet_id}`"
+
                             embeded_message = await self.generate_bet_pg(page, max_page, generate_bet_pg_kwargs)
                             paginated_components = Pagination.make_page_buttons(page, max_page)
 
                             # send the message and analyze the results
                             if (not public):
-                                await asyncio.gather(*[Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, self.generate_bet_pg, generate_bet_pg_kwargs),
+                                await asyncio.gather(*[Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, generate_pg),
                                                        self.analyze_result(ctx, bet_id, choice_no, gamemode, bet_result, public)])
 
                             else:
                                 msg_lst = []
                                 sent_message = await ctx.send(embed = embeded_message.embed, file = embeded_message.file, components = paginated_components)
                                 msg_lst.append(ButtonedMsg(sent_message, page, max_page))
-                                await asyncio.gather(*[self.text.paginated_announcement(ctx, msg_lst, page, max_page, embeded_message, self.generate_bet_pg,
-                                                                                        generate_bet_pg_kwargs, paginated_components, condition = self.not_in_guild, condition_kwargs = {"guild": ctx.guild}),
+                                await asyncio.gather(*[self.text.paginated_announcement(ctx, msg_lst, page, max_page, embeded_message, generate_pg, paginated_components,
+                                                                                        condition = self.not_in_guild, condition_kwargs = {"guild": ctx.guild}),
                                                        self.analyze_result(ctx, bet_id, choice_no, gamemode, bet_result, public)])
