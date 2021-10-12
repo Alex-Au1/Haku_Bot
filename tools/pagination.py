@@ -2,6 +2,7 @@ import discord, asyncio
 from discord.ext import commands
 from tools.embed import EmbededMessage
 from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType
+from tools.abs_func import AbsFunc
 from typing import Dict, Callable, Any, Optional, List
 
 PAGES_PER_PAGINATION = 5
@@ -9,7 +10,7 @@ MIDDLE_PAGE_INDEX = int(PAGES_PER_PAGINATION / 2)
 FIRST_PAGE = 1
 PAGE_NAV_LABELS = ["First Page", "Previous", "Next", "Last Page"]
 PAGE_REACT_TIME = 60
-CONTINUOUS_LOOP_SLEEP_TIME = 3
+CONTINUOUS_LOOP_SLEEP_TIME = 5
 
 
 # ButtonedMsg: A class for handling reactions for message with components
@@ -120,6 +121,7 @@ class Pagination():
         return components
 
 
+
     # page_react(client, current_page, max_page, generate_pg, **kwargs) Turns to a
     #   new embed page based on the users button interactions
     # requires: max_page > 0
@@ -131,17 +133,17 @@ class Pagination():
     #           be updated based off the changing size of the list from 'item_lst'
     @classmethod
     async def page_react(cls, client: discord.Client, message: discord.Message, current_page: int,
-                         max_page: int, generate_pg: Callable[[int, int, Dict[str, Any]], EmbededMessage], kwargs: Dict[str, Any], pages: Optional[List[int]] = None,
+                         max_page: int, generate_pg: AbsFunc, pages: Optional[List[int]] = None,
                          update_max_page: bool = False, items_per_page: int = 0, item_lst: Optional[List[Any]] = None,
-                         condition_left: Optional[List[Any]] = None, condition_right: Optional[List[Any]] = None, update_items = False) -> int:
-        if (condition_left is None or condition_right is None):
-            condition_left = [1]
-            condition_right = 1
+                         check_func: Optional[AbsFunc] = None, update_items = False, after_react = False) -> int:
+        if (check_func is None):
+            check_func = AbsFunc(lambda: True)
             limit = PAGE_REACT_TIME
+            after_react = False
         else:
             limit = None
 
-        while (condition_left[0] == condition_right):
+        while (check_func.run()):
             #updates the current and max page
             if (update_max_page):
                 current_page = pages[0]
@@ -149,11 +151,11 @@ class Pagination():
 
                 if (new_max_page != max_page):
                     max_page = new_max_page
-                    embeded_message = await generate_pg(current_page, max_page, kwargs)
+                    embeded_message = await generate_pg.async_run(pre_args = [current_page, max_page])
                     new_buttons = cls.make_page_buttons(current_page, max_page)
                     await message.edit(embed = embeded_message.embed, components = new_buttons)
                 elif (update_items):
-                    embeded_message = await generate_pg(current_page, max_page, kwargs)
+                    embeded_message = await generate_pg.async_run(pre_args = [current_page, max_page])
                     await message.edit(embed = embeded_message.embed)
 
             try:
@@ -165,6 +167,10 @@ class Pagination():
 
                     for t in finished_task:
                         interaction = t.result()
+
+                    for t in unfinished_tasks:
+                        t.cancel()
+
             except:
                 break
 
@@ -196,12 +202,16 @@ class Pagination():
 
             new_buttons = cls.make_page_buttons(current_page, max_page)
 
-            embeded_message = await generate_pg(current_page, max_page, kwargs)
+            embeded_message = await generate_pg.async_run(pre_args = [current_page, max_page])
 
             try:
                 await message.edit(embed = embeded_message.embed, components = new_buttons)
             except:
                 break
+
+        # react to page turns a final time once the wait condition has been finished
+        if (after_react):
+            current_page = await cls.page_react(client, message, current_page, max_page, generate_pg)
 
         return current_page
 
@@ -210,9 +220,8 @@ class Pagination():
     #   pages for multiple messages
     # effects: edits messages
     @classmethod
-    async def multi_page_react(cls, client: discord.Client, msg_lst: List[ButtonedMsg],
-                               generate_pg: Callable[[int, int, Dict[str, Any]], discord.Embed], kwargs: Dict[str, Any]):
-        await asyncio.gather(*(cls.page_react(client, m.message, m.page, m.max_page, generate_pg, kwargs) for m in msg_lst))
+    async def multi_page_react(cls, client: discord.Client, msg_lst: List[ButtonedMsg], generate_pg: AbsFunc):
+        await asyncio.gather(*(cls.page_react(client, m.message, m.page, m.max_page, generate_pg) for m in msg_lst))
 
 
     # paginated_send(ctx, embeded_message, paginated_components, current_page, max_page, generate_pg, generate_pg_kwargs)
@@ -223,16 +232,15 @@ class Pagination():
     #          'pages' is not empty and 'pages' only has 1 element where pages[0] > 0
     @classmethod
     async def paginated_send(cls, ctx: commands.Context, client: discord.Client, embeded_message: EmbededMessage, paginated_components: List[List[Button]],
-                             current_page: int, max_page: int, generate_pg: Callable[[int, int, Dict[str, Any]], EmbededMessage],
-                             generate_pg_kwargs: Dict[str, Any], pages: Optional[List[int]] = None,
+                             current_page: int, max_page: int, generate_pg: AbsFunc, pages: Optional[List[int]] = None,
                              update_max_page: bool = False, items_per_page: int = 0, item_lst: Optional[List[Any]] = None,
-                             condition_left: Optional[List[Any]] = None, condition_right: Optional[List[Any]] = None, update_items: bool = False) -> discord.Message:
+                             check_func: Optional[AbsFunc] = None, update_items: bool = False) -> discord.Message:
         if (not embeded_message.error):
             sent_message = await ctx.send(embed = embeded_message.embed, file = embeded_message.file, components = paginated_components)
-            await cls.page_react(client, sent_message, current_page, max_page, generate_pg, generate_pg_kwargs, pages = pages,
-                                 update_max_page = update_max_page, items_per_page = items_per_page, item_lst = item_lst, condition_left = condition_left,
-                                 condition_right = condition_right, update_items = update_items)
+            await cls.page_react(client, sent_message, current_page, max_page, generate_pg, pages = pages,
+                                 update_max_page = update_max_page, items_per_page = items_per_page, item_lst = item_lst, check_func = check_func, update_items = update_items)
         else:
             sent_message = await ctx.send(embed = embeded_message.embed, file = embeded_message.file)
 
         return sent_message
+
