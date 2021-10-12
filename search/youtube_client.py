@@ -11,6 +11,13 @@ class Youtube(commands.Cog):
     def __init__(self, client):
         self.client = client
         self.youtube = YoutubeUtils(client)
+        self.channel_updates.start()
+
+
+    # on_ready() Prepares the youtube channel info to be loaded
+    @commands.Cog.listener()
+    async def on_ready(self):
+        await self.youtube.prepare_latest_videos()
 
 
     # settings(ctx) Set the settings for a certain group
@@ -103,7 +110,6 @@ class Youtube(commands.Cog):
     @user.command(name = "notifications", description = "Enables/Disables all of your youtube notifications")
     async def user_notify(self, ctx: commands.Context):
         await self.youtube.enable_notifications(ctx, YtAccount.User)
-
 
 
     # channel_updates(self) Get the latest video posted by a channel
