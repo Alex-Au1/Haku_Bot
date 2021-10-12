@@ -10,8 +10,12 @@ YOUTUBE_BASE_VIDEO_URL = 'https://www.youtube.com/watch?v='
 YOUTUBE_BASE_VIDEO_URL_2 = "https://youtu.be/"
 YOUTUBE_BASE_CHANNEL_URL = "https://www.youtube.com/channel/"
 YOUTUBE_PLAYLIST_LINK = "https://www.youtube.com/playlist?list="
+
+
 SPOTIFY_BASE_URL = "https://open.spotify.com/"
-SPOTIFY_AUDIO_TYPES = ["album"]
+SPOTIFY_BASE_TRACK_URL = f"{SPOTIFY_BASE_URL}track/"
+SPOTIFY_BASE_ALBUM_URL = f"{SPOTIFY_BASE_URL}album/"
+SPOTIFY_BASE_PLAYLIST_URL = f"{SPOTIFY_BASE_URL}playlist/"
 
 
 class DataTypes(enum.Enum):
@@ -309,15 +313,28 @@ class Validate():
         return self.valid_web_link(link, YOUTUBE_BASE_CHANNEL_URL, check_link)
 
 
-    # valid_yt_playlist_link(link, check_link) Determines if the link is a valid link to a youtube playlist
+    # valid_yt_playlist_link(link, check_link) Determines if the link is a valid
+    #   link to a youtube playlists
     def valid_yt_playlist_link(self, link: str, check_link: bool = True) -> bool:
         return self.valid_web_link(link, YOUTUBE_PLAYLIST_LINK, check_link)
 
 
-    # valid_yt_channel_link(link, check_link) Determines if the link is a valid link to a youtube channel
-    def valid_spotify_link(self, link: str, check_link: bool = True) -> bool:
-        valid_link = self.valid_web_link(link, YOUTUBE_BASE_CHANNEL_URL, check_link)
+    # valid_sp_track(link, check_link) Determines if the link is a valid link
+    #   to a spotify track
+    def valid_sp_track(self, link: str, check_link: bool = True) -> bool:
+        return self.valid_web_link(link, SPOTIFY_BASE_TRACK_URL, check_link)
 
+
+    # valid_sp_album(link, check_link) Determines if the link is a valid link
+    #   to a spotify album
+    def valid_sp_album(self, link: str, check_link: bool = True) -> bool:
+        return self.valid_web_link(link, SPOTIFY_BASE_ALBUM_URL, check_link)
+
+
+    # valid_sp_playlist(link, check_link) Determines if the link is a valid link
+    #   to a spotify playlist
+    def valid_sp_playlist(self, link: str, check_link: bool = True) -> bool:
+        return self.valid_web_link(link, SPOTIFY_BASE_PLAYLIST_URL, check_link)
 
 
     # valid_audio_link(link, check_link) Checks if 'link' is a valid audio link
@@ -327,10 +344,31 @@ class Validate():
         is_valid = self.valid_yt_link(link, check_link = False)
 
         if (not is_valid):
-            is_valid = valid_yt_playlist_link(link, check_link = False)
+            is_valid = self.valid_yt_playlist_link(link, check_link = False)
 
         if (not is_valid):
-            is_valid = valid_yt_spotify_link(link, check_link = False)
+            is_valid = self.valid_sp_track(link, check_link = False)
+
+        if (not is_valid):
+            is_valid = self.valid_sp_album(link, check_link = False)
+
+        if (not is_valid):
+            is_valid = self.valid_sp_playlist(link, check_link = False)
+        return is_valid
+
+
+    # valid_audio_link(link, check_link) Checks if 'link' is a valid link to a
+    #   list of audio
+    def valid_audio_list(self, link: str, check_link: bool = True) -> bool:
+        if (check_link):
+            link = StringTools.get_link(link)
+        is_valid = self.valid_yt_playlist_link(link, check_link = False)
+
+        if (not is_valid):
+            is_valid = self.valid_sp_album(link, check_link = False)
+
+        if (not is_valid):
+            is_valid = self.valid_sp_playlist(link, check_link = False)
         return is_valid
 
 
@@ -339,7 +377,6 @@ class Validate():
     async def validate_audio(self, ctx: commands.Context, error: bool, var: Any,
                              var_name: str, allow_optional = False) -> List[Union[bool, Optional[str]]]:
         var = StringTools.convert_none(var)
-
         if (not allow_optional and var is None):
             var = StringTools.get_link(var)
             valid_audio = self.check_url(var)
