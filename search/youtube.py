@@ -3,7 +3,6 @@ from discord.ext import commands, tasks
 from tools.string import StringTools
 from bs4 import BeautifulSoup
 import tools.error as Error
-import tools.search_yt as YtSearchTools
 import tools.channels as ChannelTools
 from youtubesearchpython import *
 import tools.datetime as DateTime
@@ -12,14 +11,15 @@ from database.database import Database, SelectType
 from tools.discord_search import SearchTools
 import pics.image_links as Pics
 from text.bot_texting import Texting
-from tools.validate import Validate
+from tools.validate import Validate, YOUTUBE_BASE_VIDEO_URL, YOUTUBE_BASE_CHANNEL_URL
 from tools.pagination import Pagination, ButtonedMsg
 from set_up.server_settings import ServerSettings
 from set_up.user_settings import UserSettings
+from tools.abs_func import AbsFunc
 from typing import Optional, Union, Dict, Any
 
-YOUTUBE_BASE_VIDEO_URL = 'https://www.youtube.com/watch?v='
-YOUTUBE_BASE_CHANNEL_URL = "https://www.youtube.com/channel/"
+
+LIVE_DATE = "Live"
 CHANNEL_VIDEOS = "/videos"
 YOUTUBE_BASE_CHANNEL_VIDEOS_URL = YOUTUBE_BASE_CHANNEL_URL + "{id}" + CHANNEL_VIDEOS
 
@@ -56,7 +56,7 @@ class YoutubeUtils(commands.Cog):
         self.search_tools = SearchTools(client)
         self.embed = Embed(client)
         self.text = Texting(client)
-        self.CHANNELS_PER_PAGE = 10
+        self.CHANNELS_PER_PAGE = 5
         self.validate  = Validate(client)
 
 
@@ -68,11 +68,18 @@ class YoutubeUtils(commands.Cog):
 
     # get_latest_att(script) Get the id or publishing date of the latest youtube video from a channel
     def get_latest_att(self, start: str, script: str, key: str) -> str:
+        if (start == -1):
+            return None
+
         start += len(KEY_WORDS[key][0])
         target_str = script[start:]
         end = target_str.find(KEY_WORDS[key][1])
-        id = target_str[:end]
-        return id
+
+        if (end != -1):
+            id = target_str[:end]
+            return id
+        else:
+            return None
 
 
     # get_latest_video_info(channel_link) Gets the id of the latest youtube video
@@ -92,6 +99,11 @@ class YoutubeUtils(commands.Cog):
                         start_id = script_str.find(KEY_WORDS["id"][0])
 
                         if (start_id != -1):
+                            #get only the info for 1 video
+                            next_id = script_str[start_id + len(KEY_WORDS["id"][0]):].find(KEY_WORDS["id"][0])
+                            if (next_id != -1):
+                                script_str = script_str[:next_id]
+
                             start_date = script_str.find(KEY_WORDS["publish_date"][0])
                             premiere = script_str.find(KEY_WORDS["premiere"][0])
                             script = script_str
@@ -105,6 +117,10 @@ class YoutubeUtils(commands.Cog):
                             premiered_video = False
                         else:
                             premiered_video = True
+
+                        if (publish_date is None):
+                            publish_date = LIVE_DATE
+
                         return {"id": id, "publish_date": publish_date, "premiere": int(premiered_video)}
 
                     elif (channel_link.endswith(CHANNEL_VIDEOS)):
@@ -128,7 +144,7 @@ class YoutubeUtils(commands.Cog):
         channel_id = None
         channel_name = None
 
-        if (YtSearchTools.valid_yt_channel_link(channel)):
+        if (self.validate.valid_yt_channel_link(channel)):
             channel = StringTools.get_link(channel)
             channel_id = channel.replace(YOUTUBE_BASE_CHANNEL_URL, "")
 
@@ -211,34 +227,6 @@ class YoutubeUtils(commands.Cog):
             LATEST_VIDEOS[c["id"]] = YtChannelInfo(c["id"], c["name"], c["latest_video_id"], c["latest_video_date"], c["premiere"])
 
 
-    # question(ctx, question, question_title, set_value, values_to_check) Asks the user to
-    #   enable or disable a certain tracking attribute
-    async def question(self, ctx: commands.Context, question: str, question_title: str, set_value: bool, replacements = {"enable": "disable", "Enable": "Disable"}) -> str:
-        default_pic = {Pics.ImageCategory.Default: 0}
-        values_to_check = StringTools.TRUE + StringTools.FALSE
-
-        if (not set_value):
-            question = StringTools.word_replace(question, replacements)
-            question_title = StringTools.word_replace(question_title, replacements)
-
-        question_embed = self.embed.bot_embed(ctx, question, question_title, "yellow", 2, default_pic)
-        question_embed = self.embed.add_section(question_embed, "Yes (y)", "\U0001F44D", True)
-        question_embed = self.embed.add_section(question_embed, "No (n)", "\U0001F44E", True)
-        return await self.text.continual_ask(ctx, question_embed, values_to_check)
-
-
-    # answer(ctx, answer_desc, answer_title, set_value, values_to_check) Displays the message
-    #   to confirm that the setting value to a tracking attribute has been changed
-    async def answer(self, ctx: commands.Context, answer_desc: str, answer_title: str, set_value: bool, replacements = {"enable": "disable", "Enable": "Disable"}):
-        default_pic = {Pics.ImageCategory.Default: 0}
-
-        if (not set_value):
-            answer_desc = StringTools.word_replace(answer_desc, replacements)
-            answer_title = StringTools.word_replace(answer_title, replacements)
-        answer_embed = self.embed.bot_embed(ctx, answer_desc, answer_title, "light-green", 2, default_pic)
-        await ctx.send(embed = answer_embed.embed, file = answer_embed.file)
-
-
     # add_yt_channel(ctx, channel, sending_channel) Enable video notifications of a youtube channel to the server
     # effects: sends embeds
     #          deletes and edits messages
@@ -285,7 +273,7 @@ class YoutubeUtils(commands.Cog):
                     question_message += "?"
                     question_title = "Get Latest Videos?"
 
-                    answer = await self.question(ctx, question_message, question_title, True)
+                    answer = await self.text.question(ctx, question_message, question_title, True)
 
                     if (answer in StringTools.TRUE):
                         columns_needed = ["id", "name", "latest_video_id", "latest_video_date"]
@@ -353,7 +341,7 @@ class YoutubeUtils(commands.Cog):
                 question_message = f"Do you want to change the location of receiving notifications on the latest videos for the youtube channel, `{target_channel_name}` to the text channel, `#{sending_channel.name}`"
                 question_title = f"Change Location of Notifications?"
 
-                answer = await self.question(ctx, question_message, question_title, True)
+                answer = await self.text.question(ctx, question_message, question_title, True)
 
                 if (answer in StringTools.TRUE):
                     subd_yt_channels[target_channel_id] = sending_channel.id
@@ -399,7 +387,7 @@ class YoutubeUtils(commands.Cog):
                 question_message = f"Do you want to stop receiving notifications of the latest videos for the channel, `{target_channel_name}`"
                 question_title = f"Stop Receiving Latest Videos?"
 
-                answer = await self.question(ctx, question_message, question_title, True)
+                answer = await self.text.question(ctx, question_message, question_title, True)
 
                 if (answer in StringTools.TRUE):
                     subd_yt_channels.pop(target_channel_id)
@@ -514,9 +502,10 @@ class YoutubeUtils(commands.Cog):
             generate_yt_ch_view_pg_kwargs = {"ctx": ctx, "yt_channel_name_dict": yt_channel_name_dict, "yt_channel_name_dict_len": yt_channel_name_dict_len,
                                              "thumbnail": thumbnail, "colour": colour, "account_type": account_type, "receive_notifications": yt_channel_results[CHANNEL_NOTIFY_INDICES[account_type]]}
 
+            generate_pg = AbsFunc(self.generate_yt_ch_view_pg, kwargs = {"kwargs": generate_yt_ch_view_pg_kwargs})
             embeded_message = await self.generate_yt_ch_view_pg(page, max_page, generate_yt_ch_view_pg_kwargs)
             paginated_components = Pagination.make_page_buttons(page, max_page)
-            await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, self.generate_yt_ch_view_pg, generate_yt_ch_view_pg_kwargs)
+            await Pagination.paginated_send(ctx, self.client, embeded_message, paginated_components, page, max_page, generate_pg)
 
 
     # enable_notifications(ctx, account_type) Enables or disables receiving youtube notifications
@@ -543,7 +532,7 @@ class YoutubeUtils(commands.Cog):
 
             notifications = Database.default_select(default_func, SelectType.List, [CHANNEL_NOTIFY_INDICES[account_type], table], {"conditions": conditions}, [ctx], {})[0]
             new_notification = not bool(notifications)
-            response = await self.question(ctx, question_message, question_title, new_notification, replacements = {"receive": "stop receiving", "Receive": "Stop Receiving"})
+            response = await self.text.question(ctx, question_message, question_title, new_notification, replacements = {"receive": "stop receiving", "Receive": "Stop Receiving"})
 
             if (response in StringTools.TRUE):
                 Database.update({CHANNEL_NOTIFY_INDICES[account_type]: f"{int(new_notification)}"}, table, conditions = conditions)
@@ -567,22 +556,16 @@ class YoutubeUtils(commands.Cog):
             latest_premiere = search_result["premiere"]
 
             if (latest_video_id != LATEST_VIDEOS[c].latest_video_id or (latest_video_id == LATEST_VIDEOS[c].latest_video_id and latest_premiere != LATEST_VIDEOS[c].premiere)):
-                print(f"YAYYE AND {latest_video_id} AND {LATEST_VIDEOS[c].latest_video_id}")
                 latest_video = LATEST_VIDEOS[c]
-                print(f"HERE IS PUBLICSHING DATE: {search_result['publish_date']}")
                 latest_publish_date = DateTime.get_yt_format_date(search_result["publish_date"])
                 previous_publish_date = DateTime.get_duration(latest_video.publish_date)
 
-                print(f"{latest_publish_date} AND {previous_publish_date} AND {latest_publish_date > previous_publish_date}")
                 if (latest_publish_date > previous_publish_date or (latest_premiere != LATEST_VIDEOS[c].premiere)):
                     if (latest_premiere != LATEST_VIDEOS[c].premiere and not latest_premiere):
-                        print(f"The premiered video from {latest_video.name} has been uploaded")
                         upload_message = f"The premiered video from `{latest_video.name}` is ready to watch!"
                     elif (latest_premiere):
-                        print(f"{latest_video.name} premiered a new video")
                         upload_message = f"`{latest_video.name}` premiered a new video!"
                     else:
-                        print(f"{latest_video.name} posted a new video")
                         upload_message = f"`{latest_video.name}` uploaded a new video!"
 
                     columns_needed = ["id", CHANNEL_LOCATION_INDICES[YtAccount.Server]]
@@ -626,4 +609,3 @@ class YoutubeUtils(commands.Cog):
 
                             if (user is not None):
                                 await user.send(new_video_message)
-
