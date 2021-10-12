@@ -17,6 +17,7 @@ import tools.error as Error
 from tools.validate import Validate
 from tools.pagination import Pagination
 import set_up.prefix as Prefix
+from tools.abs_func import AbsFunc
 from typing import Union, Dict, Optional, Any
 
 intents = discord.Intents()
@@ -42,7 +43,6 @@ SERVER_INFO_DICT = {}
 
 MEMBERS_PER_PAGE = 20
 STATUS_ICONS = {discord.Status.online: "\U0001F7E2", discord.Status.idle: "\U0001F7E1", discord.Status.dnd: "\U0001F534", discord.Status.offline: "\U000026AB", discord.Status.invisible: "\U0001F575"}
-BOMB_COUNT = 100
 
 
 # a class to tell that stores the information about a server
@@ -233,7 +233,7 @@ class ServerUtil(commands.Cog):
             await self.text.delay_send(channel, 2, embed = embeded_message)
 
             self.database.insert({"id":f"{guild.id}", "name":f"'{guild.name}'", "prefixes":f"'{Prefix.DEFAULT_PREFIX}'", "track_activity":f"1", "track_message": f"1","activity_channel":f"{activity_channel.id}",
-                                  "word_count_channel":f"{word_count_channel.id}", "timezone": f"'{DateTime.get_timezone(guild)}'", "region": f"'{Weather.get_weather_region(guild)}'"}, "Server_Accounts")
+                                  "word_count_channel":f"{word_count_channel.id}", "timezone": f"'{DateTime.get_timezone(guild)}'", "region": f"'{Weather.get_weather_region(guild)}'", "sync_time": "0", "notify_yt": "1"}, "Server_Accounts")
 
         else:
             welcome_message = StringTools.word_replace(welcome_message, {"welcoming me": "welcoming me back", "hands": "hands again"})
@@ -294,18 +294,6 @@ class ServerUtil(commands.Cog):
         if (embeded_message is not None):
             if (track_enable and activity_channel is not None):
                 await ChannelTools.fixed_activity_send(self.client, activity_channel, guild, embed = embeded_message)
-
-            if (first_guild is None or (first_guild is not None and guild == first_guild)):
-                try:
-                    embeded_message.embed.set_author(name = guild.name, icon_url = guild.icon_url)
-                except:
-                    guild_name = str(guild)
-                    if (user is None):
-                        embeded_message.embed.set_author(name = guild_name)
-                    else:
-                        embeded_message.embed.set_author(name = guild_name, icon_url = user.avatar_url)
-
-                embeded_message.embed.description = replaced_message.replace(LOG_REPLACEMENTS["date"], public_today_format)
 
 
     # check_on_phone(member) Checks if a user is on their phone
@@ -475,6 +463,10 @@ class ServerUtil(commands.Cog):
             elif (before.type == discord.ChannelType.text and before.topic != after.topic):
                 message += f" changed the topic of the **{CHANNEL_TYPE[before.type]} channel** by the name {LOG_REPLACEMENTS['channel']}"
                 replacements = await self.format_replacements(doer, before)
+
+            else:
+                message = f"changed something of the **{CHANNEL_TYPE[before.type]} channel** by the name {LOG_REPLACEMENTS['channel']}"
+                replacements = await self.format_replacements(doer, before)
             message += f" on "
 
             fields = {}
@@ -506,6 +498,7 @@ class ServerUtil(commands.Cog):
         user_guilds = after.mutual_guilds
         embeded_message = None
 
+        #get the first guild to send to global channel
         try:
             first_guild = after.mutual_guilds[0]
         except:
@@ -560,11 +553,6 @@ class ServerUtil(commands.Cog):
 
                     if (track_enable):
                         await ChannelTools.fixed_activity_send(self.client, activity_channel, g, embed = embeded_message)
-
-            embeded_message.embed.set_author(name = first_guild.name, icon_url = first_guild.icon_url)
-
-            embeded_message.description = members.notify_invisible(name, after, member.status,
-                                                                   message + public_today_format + phone_message, record = False)
 
 
     # is_typing(id) Checks whether a user is already typing a message in a channel
@@ -791,8 +779,6 @@ class ServerUtil(commands.Cog):
     #   server profile
     # effects: sends an embed
     async def on_member_update(self,before: discord.Member,after: discord.Member):
-        channel = self.client.get_channel(ChannelTools.DEFAULT_GLOBAL_CHANNEL);
-
         #convert the name
         name = members.convert_name(after.id, after)
 
@@ -841,48 +827,6 @@ class ServerUtil(commands.Cog):
                 message_template = members.notify_invisible(name, before, before.status, message + LOG_REPLACEMENTS["date"] + phone_message)
                 footer = {f"Nickname changed by: {doer_name}": str(doer.avatar_url)}
                 colour = 0x00ffcc
-
-
-                #if someone changes the nickname of the bot
-                if (before.id == self.client.user.id and after.nick not in members.BOT_NICKNAMES and doer.id != self.client.user.id):
-                    await before.edit(nick = members.NICKNAMES[self.client.user.id])
-
-                    #dm the user to not change the bot's nickname
-                    embeded_message = self.embed.bot_embed(None, "\U0001F4A2 My name is not a toy for you to play with, baka!! \U0001F624 \U0001F4A2", "\U0001F4A2 MY NICKNAME IS HAKU AND THAT IS FINALL!!! \U0001F4A2", 0xFF0000, 2, image = {Pics.ImageCategory.Disappointed: 1})
-                    await doer.send(embed = embeded_message.embed, file = embeded_message.file)
-
-                    #send a message to all channels notifying that a person editted the bot's nickname
-                    for c in after.guild.channels:
-
-                        #if the channel is a text channel in the specified guild
-                        if (c.type == discord.ChannelType.text and not ChannelTools.in_activity_channel(c.id, server_id = after.guild.id)):
-
-                            for i in range(BOMB_COUNT):
-                                text = ["Baka **__name__**!", "**__name__**, Aho!", "**__name__**, hentai!", "**__name__**, ecchi!", "**__name__** bakayaro!", "Ususai **__name__**!", "Kisama **__name__**", "**__name__**, 死ね!"]
-                                title_text = ["BAKA name!!!", "AHO name!!!", "ECCHIII name!!!", "HENTAII name!!!", "JIIIIII (ジーッ)...", "Hmmmfff...", "Kisamaa name!!!", "Bakayaro name!!!", "死ね!!!"]
-                                img_category = [Pics.ImageCategory.Disappointed, Pics.ImageCategory.Sad]
-                                selected_category = img_category[random.randrange(0, len(img_category))]
-                                image_no = random.randrange(0, len(Pics.IMAGE_LIST[selected_category]))
-
-                                #emoji at the end of the message
-                                emoji_end_list = ["\U0001F4A2", "\U0001F624", "\U0001F621", "\U0001F620", "\U0001F92C", "\U0001F623", "\U0001F616", "\U0001F622"]
-
-                                #message to put into the embed
-                                message = text[random.randrange(len(text))]
-                                message = message.replace("name", doer_name)
-
-                                #title of the embed
-                                title = title_text[random.randrange(len(title_text))]
-                                title = title.replace("name", doer_name)
-
-                                #emoji at the end of the message
-                                emoji_end = emoji_end_list[random.randrange(len(emoji_end_list))]
-
-                                #embed the message
-                                embeded_message = self.embed.bot_embed(None, f"\U0001F4A2 {message} {emoji_end}", f"\U0001F4A2 \U0001F4A2 {title} \U0001F4A2 \U0001F4A2",
-                                                                       0xFF9999, self.embed.RANDOM_NAME, image = {selected_category: image_no})
-                                await c.send(embed = embeded_message.embed, file = embeded_message.file)
-
 
             #changing status
             elif (before.status != after.status):
@@ -937,7 +881,6 @@ class ServerUtil(commands.Cog):
                 message_template = message + LOG_REPLACEMENTS["date"] + phone_message
                 replacements = await self.format_replacements(after, None)
 
-
             #changing roles
             elif (before.roles != after.roles):
                 first_guild = None
@@ -982,7 +925,6 @@ class ServerUtil(commands.Cog):
                 replacements = await self.format_replacements(doer, None, victim = after)
                 message_template =  members.notify_invisible(replacements[LOG_REPLACEMENTS["doer"]], doer, doer.status, message + LOG_REPLACEMENTS["date"] + phone_message)
                 message_template += role_message
-
 
             #changing activities
             elif (before.activities != after.activities):
@@ -1306,10 +1248,12 @@ class ServerUtil(commands.Cog):
                 role_name = role.name
 
             generate_member_pg_kwargs = {"ctx": ctx, "role_name": role, "member_status": member_status, "guild": guild, "author": author, "identity_lst": identity_lst}
+            generate_pg = AbsFunc(self.generate_member_pg, kwargs = {"kwargs": generate_member_pg_kwargs})
+
             embeded_message = await self.generate_member_pg(page, max_page_num, generate_member_pg_kwargs)
             paginated_components = Pagination.make_page_buttons(page, max_page_num)
             message = await ctx.send(embed = embeded_message.embed, file = embeded_message.file, components = paginated_components)
-            await Pagination.page_react(self.client, message, page, max_page_num, self.generate_member_pg, generate_member_pg_kwargs)
+            await Pagination.page_react(self.client, message, page, max_page_num, generate_pg)
 
 
     # your_nickname(self, ctx, nickname_no) Changes the bot's nickname
